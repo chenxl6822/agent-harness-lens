@@ -107,3 +107,20 @@
 
 - **sessionId 在 dsh 侧完全可得**（`agent.id`、`session/created`、`session/flush`、`session/event` 均携带）。T03 遗留的「通道 A 无 sessionId」问题**在 dsh 通道不存在**，跨通道归并难点只在 CodeBuddy `traces` 一侧。
 - `session/event` 的 `session.log[]` 自带 `seq/time/type/data`，是一份比 `internal/dispatch` 镜像更干净的物化账本，T05 存储层应优先评估。
+
+## 6. T04c 修订建议：多智能体实证 + 原生 OTLP 通道评估（2026-10-25，不改上文既有文字）
+
+**多智能体轨迹 = full（rc.2，实测）**。父+2子拓扑一次 headless 运行（`probe/rc3c/raw/e1c-events.ndjson`，1646 行 0 解析失败）证明：
+
+1. **父子关联键存在**：子智能体全部事件载荷携带 `parentSession=<父 session id>`；`options.subagentDepth` 标层级；`subagent/start.{runId, provider, id}` ↔ `agent/created.id` 一一对应；`subagent/end` 携带 `stopReason` 与子智能体最终答复全文（`lastAssistantMessage`）。§5.4 的「无子智能体」限定就此解除。
+2. **派单配对稳定**：`tools/execute(name=subagent).arguments{description, prompt}` = 任务描述；`tools/result`（结果在 **args[1]**，非 args[0]）文本直接返回 `started subagent <id>`。callId 豁免脱敏后配对率 136/136=100%，§5.3 的硬约束已验证可行。
+3. **逐成员归属成立**：`agent/pre-step`（messages+turn+step）、`tools/execute|result`（args[0].agent.id）、`agent/inbox/*`、`agent/assistant-stream` 均按成员 agent id 区分；跨成员消息通道 `send_message` 及成员列表 `list_agents` 实测可见。六项协作指标数据源全部 available（唯一缺口：`llm/stream` 无 agentId、agent 无 name/role 字段——见 `probe/rc3c/result.json`）。
+
+**原生 OTLP 通道（E2）**：`dsh-session-telemetry-otel` 真实可导出（OTLP/JSON logs + gzip，URL 可被 `DSH_TELEMETRY_OTLP_URL` 覆盖，mode ∈ {FEEDBACK_ONLY, DISABLED}），但**仅在显式 feedback 时导出**、仅 logs、属性非 gen_ai 语义、载荷为 feedback 时点会话账本快照 → **不能替代自研插件**，T05 主通道维持 §1–§5 的 `ctx.on` + `internal/dispatch` 镜像路线。
+
+**T05 实现约束（新增）**：
+
+- 直挂仅限 notify 型事件；`tools/*`、`llm/*`、`session/*`、`feedback/*`、`agent/pre-step` 等 waterfall/bail 语义事件直挂返回 undefined 会打断 dsh 派发链（T04c run1/f 两次崩溃实证），一律走 `internal/dispatch` 镜像。
+- NDJSON 落盘禁止「切片截断」（会制造非法 JSON 行，T04b/T04c run2 教训）；超限改记骨架记录 + 保留 `original_bytes`。
+- `tools/result` 的载荷在 args[1]（`{isError, content, value}`），args[0] 是与 execute 同构的信封（token/callId/agent/arguments）。
+- **派单识别禁止用结果文本正则**（WorkBuddy 验收复核发现，T04c 样本实证）：子智能体继承父级上下文，父对话中的 `started subagent <id>` 字符串会出现在**子智能体自己工具的结果内容**里。实测 `tools/result` 文本命中 18 条，真实派单仅 2 次，其余 16 条工具名为 `pwsh/read/glob/list_agents/send_message/write`。**必须先按 `tools/execute.name === 'subagent'` 过滤，再取同 callId 的 result**；直接用正则会令「派单次数」虚报 9 倍，污染派单均衡度与认领冲突率。

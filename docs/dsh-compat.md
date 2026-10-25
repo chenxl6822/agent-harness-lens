@@ -48,3 +48,22 @@ agent/assistant-stream · agent/error · agent/status · agent/inbox/{claimed,di
 > **T04b（2026-10-25）已完成上述三实验**：internal/dispatch 实证为总线派发遥测镜像并承载工具/LLM/turn-step 全量轨迹；agent/* 经 `ctx.on` 直挂全量可达（11670 帧）；版本门禁规则落 `docs/dsh-version-gate.md`，映射草案落 `docs/dsh-bridge-contract.md`，实测数据在 `probe/rc3b/`。§3c 的缺口结论已被推翻——轨迹粒度可达 **full**（仅 rc.2）。
 >
 > ⚠️ **上句的 `full` 须读作 `full (single-agent)`**（WorkBuddy 验收补正）：该次运行 `agent/created` 仅 1 个 session、`subagent/*` 仅启动期 `provider-added`，子智能体实例为 0，多智能体轨迹**尚未验证**。另有三处结论需按 `docs/dsh-bridge-contract.md` §5 修正：`llm/stream` 仅 3 条且全为 session-title（主对话消息取 `agent/pre-step.messages`）；仅 start 帧带 turn/step；`callId` 脱敏导致配对不可复核。详见 `acceptance/G-T04b-验收报告.md`。
+
+## 5. T00 勘误：原生 OTLP / telemetry 结论（T04c 推翻，2026-10-25）
+
+T00 原结论「dsh 0.2.1-rc.2 无原生 OTLP／配置 schema 中完全没有 telemetry 字段」**不成立**，原文字段保留于此作历史记录，以本节为准。
+
+**可复现证据**：
+
+```bash
+node ~/.workbuddy/binaries/node/workspace/node_modules/@deepseek-ai/dsh/lib/bin.js --profile headless --dump-config        | grep -i telemetry   # 命中 session-telemetry-otel 插件块
+node ~/.workbuddy/binaries/node/workspace/node_modules/@deepseek-ai/dsh/lib/bin.js --profile headless --dump-config-schema | grep -ci telemetry   # = 5
+```
+
+**正确表述**（T04c 运行时实测，证据 `probe/rc3c/`）：
+
+- rc.2 headless profile 原生注册两个插件：`dsh-otel`（OTel LoggerProvider + createSessionLogReporter，**仅 logs，无 traces**）与 `dsh-session-telemetry-otel`（OTLP logs 导出后端）。
+- schema `config22.mode` 合法值仅 **`FEEDBACK_ONLY`（默认）** / **`DISABLED`**。
+- 默认导出地址 `https://dsh-otel-collector.deepseeksvc.com/v1/logs`，**可被 `DSH_TELEMETRY_OTLP_URL` 覆盖**（运行时实证：注入非法 URL → 插件启动报错 `exporter.url is not a valid URL`；注入本地 sink → 收到 gzip 的 OTLP/JSON `resourceLogs`）。
+- 关键限定：该通道**仅在显式用户 feedback（`feedback/record` 等）时导出**，载荷是 feedback 时点的会话事件账本全量回放；属性为 dsh 私有键（session.id/event.type/event.seq/session.cwd 等），**不含 OTel GenAI（gen_ai.*）语义属性**。
+- 结论：原生 OTLP 通道存在且可用，但**不能替代自研 `--patch` 插件**做常态全量轨迹采集——详见 `probe/rc3c/result.json` E2 节与 `docs/dsh-bridge-contract.md` §6。

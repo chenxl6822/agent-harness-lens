@@ -66,10 +66,18 @@ session.start → turn.start → tool.call → tool.result → turn.end
 | --- | --- | --- |
 | 跨语言契约 | ✅ | 4 份 JSON Schema 为唯一真源，TS / Python 类型全部生成，永不手写 |
 | CodeBuddy Hook 采集 | ✅ | 12 类 Hook 全映射；真实会话实测触发 5 事件；hook 净开销 ~45ms，不影响被测 Agent |
-| dsh 采集通道探针 | ✅ | 实测结论：dsh 0.2.1-rc.2 **无原生 OTLP**、会话日志**只有会话头**、`--patch` 插件桥接**可用** |
+| dsh 采集通道探针 | ✅ | `--patch` 插件桥接可用；根 ctx 无 agent 语义事件，全量轨迹须走 `internal/dispatch` 镜像 |
 | 文件采集通道 | ✅ | trace / transcript / tasks 三通道；1452 个 span 解析零误差、调用树零环、增量 p95 8ms |
-| dsh 插件桥接 | ⏳ | 待开发 |
+| dsh 多智能体轨迹 | ✅ | 父+2子实测：父子关联（`parentSession`）、派单配对（2/2）、成员归属（113/386/262）、`subagent/end` 终态全部可达 |
 | 存储 / 指标引擎 / 报告 | ⏳ | 待开发 |
+
+> **关于 dsh 原生 OTLP**：早期探针曾判定「dsh 无原生 OTLP」，该结论已被推翻——rc.2 确实注册了
+> `dsh-otel` + `dsh-session-telemetry-otel`，URL 可被 `DSH_TELEMETRY_OTLP_URL` 覆盖。但它**仅在用户显式
+> feedback 时导出**、仅 logs 信号、属性为 dsh 私有键（无 `gen_ai.*`），因此**不能替代**本项目自研的常态
+> 全量采集。详见 [`docs/dsh-compat.md`](docs/dsh-compat.md) §5。
+>
+> ⚠️ **隐私提示**：该原生通道会把 `session.cwd`（本机绝对路径原文）随账本一并导出，且**没有脱敏钩子**；
+> 触发条件是使用者在 dsh 里主动提交 feedback。这是 dsh 的产品行为，非本项目引入，但值得知悉。
 
 ## 快速开始
 
