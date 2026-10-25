@@ -10,6 +10,7 @@ spool/
 dist/
 .gen-tmp/
 .uv-cache/
+.tmp-push/
 
 # 一次性探针产物（T00，不入库）
 probe/
