@@ -1,0 +1,22 @@
+{
+  "source": "probe/rc3/raw/events-rc2.ndjson",
+  "total": 3404,
+  "parsed": 3404,
+  "unparsable": 0,
+  "distinct": 13,
+  "counts": {
+    "internal/dispatch": 1784,
+    "internal/status": 942,
+    "loader/partial-dispose": 290,
+    "internal/plugin": 227,
+    "system-prompt/change": 64,
+    "tools/change": 50,
+    "[object Object]": 24,
+    "settings/document-updated": 11,
+    "domain/changed": 4,
+    "(no-name)": 2,
+    "rc3-probe/ping": 2,
+    "subagent/provider-added": 2,
+    "fs/observed": 2
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "probe_version": "rc3-recheck",
+  "probed_at": "2026-10-25T22:50:00+08:00",
+  "dsh": {
+    "version_actually_run": "0.2.1-rc.2",
+    "executable_path": "C:/Users/chenxl/.workbuddy/binaries/node/workspace/node_modules/@deepseek-ai/dsh/lib/bin.js",
+    "version_source": "npm",
+    "version_mismatch_note": "本机实际可运行的 CLI 仍是 0.2.1-rc.2（npm 包，--version 输出 '0.2.1-rc.2'，package.json version 同）。rc.3 只存在于桌面端：D:/DSH（version 文件 44.7.0 为 Electron 版本；resources/app.asar 内含 4623 处 '0.2.1-rc.3' 字符串；updater pending 包为 deepseek-harness-0.2.1-rc.3-win-x64.exe）。asar 内代码无法用 node 直接运行，提取需 asar 工具（本卡禁止引入）。因此本卡全部运行时证据只覆盖 rc.2；rc.3 仅有静态证据（asar 二进制 grep）。"
+  },
+  "patch_seam": {
+    "supported": true,
+    "evidence": "raw/l3-run2.stdout 原文：'[rc3-probe] ctx keys = [\"fiber\"]' / '[rc3-probe] ctx api surface = {\"on\":\"function\",\"once\":\"function\",\"emit\":\"function\",\"logger\":\"function\",\"events\":\"object\",\"root\":\"object\",\"registry\":\"object\",\"fiber\":\"object\"}' / '[rc3-probe] emit wrapped on ctx'；headless 任务 exit_code=0，插件包裹的 emit 共记录 3404 条事件落盘 raw/events-rc2.ndjson",
+    "failure_reason": null,
+    "note": "证据来自 rc.2 运行时。rc.3 的 --patch seam 未经运行时验证（拿不到可运行的 rc.3 CLI）。另勘误一处调用姿势：--patch 必须挂在 profile 名之后（`dsh headless --patch x.yml \"任务\"`）；把 --patch 放在前面会报 'error: --profile <name> is required'，挂在 --profile web 后则与 headless 子命令冲突（'error: too many arguments'）。"
+  },
+  "ctx_api": {
+    "observed_keys": ["on", "once", "emit", "logger", "events", "root", "registry"],
+    "matches_rc2": true,
+    "diff_vs_rc2": [],
+    "note": "Object.keys(ctx) 在 T00 与本次均为 [\"fiber\"]；T00 所列 7 键指 api surface（'in' 探测），本次 surface 与 T00 逐项一致，无增减。ctx.fiber 自身 surface 为空对象。"
+  },
+  "events": {
+    "method": "runtime (rc.2) + static (rc.3 asar grep)",
+    "names": {
+      "runtime_rc2_root_ctx": ["internal/dispatch", "internal/status", "internal/plugin", "loader/partial-dispose", "system-prompt/change", "tools/change", "settings/document-updated", "domain/changed", "subagent/provider-added", "fs/observed", "[object Object](24 次，emit 首参为对象，事件名无法字符串化)", "rc3-probe/ping(探针自发射)"],
+      "static_rc3_asar_namespaced": ["agent/assistant-stream", "agent/error", "agent/status", "agent/inbox/claimed", "agent/inbox/discarded", "agent/inbox/inserted", "app/ready", "connection/reset", "cordis/dynamic-package", "cordis/dynamic-retract", "cordis/inspect-query", "cordis/inspect-query-resolved", "cordis/request-run", "cordis/request-run-resolved", "domain/changed", "fs/observed", "goal/activation-changed", "goal/changed", "hmr/change", "hmr/reload", "internal/dispatch", "internal/plugin", "internal/status", "loader/config-update", "loader/entry-init", "loader/partial-dispose", "locale/change", "schedule/changed", "settings/document-updated", "slots/changed", "subagent/end", "subagent/provider-added", "subagent/start", "theme/change", "tools/change", "webserver/index-inject"]
+    },
+    "coverage": {
+      "agent": ["static(rc.3): agent/assistant-stream, agent/error, agent/status, agent/inbox/{claimed,discarded,inserted}", "runtime(rc.2): 根 ctx 上零触发 —— 疑似发在 agent 子 context 或经 internal/dispatch 参数传递（未验证）"],
+      "turn": ["runtime 与 static 均未观测到任何 turn 语义事件名"],
+      "step": ["runtime 与 static 均未观测到任何 step 语义事件名"],
+      "tool": ["runtime(rc.2)+static(rc.3) 均只有 tools/change（插件/工具清单变化），未观测到逐次工具调用事件名；逐次调用疑似走 internal/dispatch（4 参数 string,string,array,object|null），参数值未记录，未验证"],
+      "llm": ["runtime 未观测到 llm 语义事件名；static(rc.3) asar 中存在 finalMessage/thinking/text/tokens/streamEvent 等流式词（来自各处 EventEmitter，是否可达插件 ctx 未验证）"]
+    },
+    "runtime_volume": "一次 headless 任务（读 input.txt 并输出）在根 ctx emit 上共 3404 条：internal/dispatch 1784、internal/status 942、loader/partial-dispose 290、internal/plugin 227、system-prompt/change 64、tools/change 50、其余少量。完整清单见 raw/events-rc2.ndjson。"
+  },
+  "blockers": [
+    "rc.3 CLI 不可运行：桌面 rc.3 打包在 D:/DSH/resources/app.asar（182MB），解包需 asar 工具（新依赖，本卡禁止）；在拿到可运行的 rc.3 CLI 或获准解包前，rc.3 的 --patch/ctx 只能静态推断，不能声称运行时复验通过",
+    "internal/dispatch 的 4 个参数只记录了类型（bridge.mjs 只落盘 argTypes），agent/tool/llm 语义是否内嵌其中未验证 —— 这是 T04b 的第一个必做实验",
+    "agent/* 事件在根 ctx（插件 apply 收到的 context）上零触发：需验证是发在子 context 还是根本不经过 ctx.emit",
+    "DEEPSEEK_API_KEY 仍须从 ~/.dsh/.credentials.yaml 手动提取注入（本卡执行时已这样做，未打印未落盘），headless 裸跑依旧 MISSING_CREDENTIAL"
+  ],
+  "recommendation_for_t04b": "seam 本身（--patch 挂 .mjs + ctx.on/emit 包裹）在 rc.2 上已再次运行时验证可用，可以启动 T04b；但版本门禁必须内置 —— rc.3 未经运行时复验，T04b 开工第一步应做三件事：(1) 把 bridge 的 argTypes 升级为截断参数值落盘，验证 internal/dispatch 是否承载 tool/llm 轨迹；(2) 枚举 ctx.events/root/registry 找 agent/* 事件的正确挂载点；(3) 在可运行的 rc.3 CLI（或获准解包 asar）上重跑本探针作为门禁，通过前版本门禁锁 rc.2。"
+}
