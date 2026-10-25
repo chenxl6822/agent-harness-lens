@@ -70,7 +70,8 @@ function str(v: unknown, fallback = 'unknown'): string {
 /**
  * 原始 hook/stdin 事件 -> TraceEvent。
  * 返回 null 表示事件不在映射范围内（调用方应计数丢弃，不得抛错）。
- * 注意：seq 恒为 0（占位），由 T05 collector 按 (run_id, ts_mono_ms, event_id) 赋号。
+ * 注意：seq 恒为 0（占位值，仅在摄入前有效）——由 T05a collector 的
+ * assign_seq()（纯函数，run 内全局单调、输入顺序无关、输出确定）统一赋号。
  */
 export function normalizeEvent(
   raw: Record<string, unknown>,
