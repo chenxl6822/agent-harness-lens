@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "harness-scope-engine"
+version = "0.1.0"
+description = "harness_scope 核心评测引擎（Python 侧）"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.7",
+    "pyyaml",
+    "typer",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "ruff",
+    "jsonschema",
+    "datamodel-code-generator>=0.25.8",
+]
+
+[project.scripts]
+hs = "hs_core.cli:main"
+
+[tool.setuptools]
+packages = ["hs_core"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint.per-file-ignores]
+# 由 datamodel-code-generator 生成，不手改，不参与 lint
+"hs_core/models.py" = ["ALL"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

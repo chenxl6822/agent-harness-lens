@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://harness-scope.dev/schema/metric-set.json",
+  "title": "MetricSet",
+  "description": "指标结果模型（架构文档 §2.4.3）。每个 MetricValue 必须可下钻到 event_id。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "run_id",
+    "schema_version",
+    "engine_version",
+    "computed_at",
+    "groups",
+    "degraded_metrics"
+  ],
+  "properties": {
+    "run_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "评测执行单元 ID"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "description": "契约版本，固定为 SCHEMA_VERSION '1.0.0'"
+    },
+    "engine_version": {
+      "type": "string",
+      "minLength": 1,
+      "description": "产生本指标集的引擎版本"
+    },
+    "computed_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "计算完成时间，ISO 8601 UTC"
+    },
+    "groups": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["result", "process", "collaboration", "cost"],
+      "properties": {
+        "result": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/MetricValue" },
+          "description": "完成率 / pass^k / 判定结论"
+        },
+        "process": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/MetricValue" },
+          "description": "工具正确率 / 轨迹效率 / 重试率 / 冗余循环"
+        },
+        "collaboration": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/MetricValue" },
+          "description": "6 项多智能体协作指标"
+        },
+        "cost": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/MetricValue" },
+          "description": "tokens / ¥ / 墙钟 P50 P95"
+        }
+      }
+    },
+    "degraded_metrics": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "因数据缺失而 N/A（value=null）的指标 key 列表"
+    }
+  },
+  "$defs": {
+    "MetricValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "label_zh", "value", "evidence"],
+      "properties": {
+        "key": {
+          "type": "string",
+          "pattern": "^(result|process|collab|cost)\\.[a-z][a-z0-9_]*$",
+          "description": "指标 key，如 'collab.claim_conflict_rate'"
+        },
+        "label_zh": {
+          "type": "string",
+          "minLength": 1,
+          "description": "中文名（报告用）"
+        },
+        "value": {
+          "type": ["number", "boolean", "null"],
+          "description": "指标值；null = 数据不足（N/A），此时 key 必须写入 degraded_metrics"
+        },
+        "unit": {
+          "type": "string",
+          "enum": ["ratio", "count", "ms", "cny", "tokens", "score"]
+        },
+        "higher_is_better": {
+          "type": "boolean",
+          "description": "指标方向"
+        },
+        "confidence": {
+          "type": "string",
+          "enum": ["high", "medium", "low"],
+          "description": "样本量不足时标 low（样本量 < 20）"
+        },
+        "evidence": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/EvidenceRef" },
+          "description": "必填（可空数组但需在 note 说明原因）；每个数字可下钻到 event_id"
+        }
+      }
+    },
+    "EvidenceRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["event_ids"],
+      "properties": {
+        "event_ids": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1,
+          "description": "支撑本指标值的事件 ID，至少一个"
+        },
+        "span_ids": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "agent_ids": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "task_ids": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "note": {
+          "type": "string",
+          "description": "人类可读解释"
+        }
+      }
+    }
+  }
+}

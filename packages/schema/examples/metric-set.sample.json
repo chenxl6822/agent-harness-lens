@@ -1,0 +1,64 @@
+{
+  "run_id": "run-20261025-smoke-001",
+  "schema_version": "1.0.0",
+  "engine_version": "0.1.0",
+  "computed_at": "2026-10-25T08:35:00.000Z",
+  "groups": {
+    "result": [
+      {
+        "key": "result.success",
+        "label_zh": "任务完成率",
+        "value": 1.0,
+        "unit": "ratio",
+        "higher_is_better": true,
+        "confidence": "high",
+        "evidence": [
+          {
+            "event_ids": ["01JC6Z8G4YQ3V9M2K7T5XW0ARD"],
+            "task_ids": ["t001"],
+            "note": "判定器退出码 0，任务完成"
+          }
+        ]
+      }
+    ],
+    "process": [],
+    "collaboration": [
+      {
+        "key": "collab.claim_conflict_rate",
+        "label_zh": "认领冲突率",
+        "value": 0.25,
+        "unit": "ratio",
+        "higher_is_better": false,
+        "confidence": "medium",
+        "evidence": [
+          {
+            "event_ids": [
+              "01JC6Z8G4YQ3V9M2K7T5XW0ARD",
+              "01JC6Z9HJ2P5W8N4M1K3XV7QRT"
+            ],
+            "agent_ids": ["lead-01", "impl-01"],
+            "task_ids": ["t001", "t002"],
+            "note": "4 次认领中 1 次出现多 owner 冲突"
+          }
+        ]
+      }
+    ],
+    "cost": [
+      {
+        "key": "cost.tokens_total",
+        "label_zh": "Token 总消耗",
+        "value": 18432,
+        "unit": "tokens",
+        "higher_is_better": false,
+        "confidence": "high",
+        "evidence": [
+          {
+            "event_ids": ["01JC6Z8G4YQ3V9M2K7T5XW0ARD"],
+            "note": "llm.response.usage 累加"
+          }
+        ]
+      }
+    ]
+  },
+  "degraded_metrics": []
+}

@@ -1,0 +1,33 @@
+{
+  "schema_version": "1.0.0",
+  "event_id": "01JC6Z8G4YQ3V9M2K7T5XW0ARD",
+  "run_id": "run-20261025-smoke-001",
+  "seq": 0,
+  "ts": "2026-10-25T08:30:00.000Z",
+  "ts_mono_ms": 12345678,
+  "session_id": "sess-codebuddy-a1b2c3",
+  "agent_id": "lead-01",
+  "agent_role": "lead",
+  "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+  "span_id": "00f067aa0ba902b7",
+  "type": "run.start",
+  "source": {
+    "platform": "codebuddy",
+    "version": "2.154.0",
+    "channel": "hook",
+    "degraded": "L1"
+  },
+  "labels": {
+    "variant": "v1",
+    "model": "deepseek-v3",
+    "taskset": "smoke",
+    "task_id": "t001",
+    "team": "demo-team"
+  },
+  "payload": {
+    "hook_event_name": "SessionStart",
+    "cwd": "D:/demo/repo"
+  },
+  "raw_ref": "spool/run-20261025-smoke-001.jsonl:1",
+  "redacted": false
+}

@@ -1,0 +1,35 @@
+{
+  "platform": "dsh",
+  "version": "0.2.1-rc.2",
+  "telemetry": "degraded",
+  "channels": [
+    {
+      "channel": "otlp",
+      "status": "none",
+      "degraded": "L1",
+      "note": "T00 探针实测：0.2.1-rc.2 无 telemetry/OTLP 导出字段，原 L1 通道不存在"
+    },
+    {
+      "channel": "file",
+      "status": "degraded",
+      "degraded": "L2",
+      "note": "session.v4.jsonl.zstd 仅含会话头 222 字符，只能拿元数据"
+    },
+    {
+      "channel": "cli",
+      "status": "ok",
+      "degraded": "L3",
+      "note": "headless 退出码/墙钟/stdout diff 稳定可用"
+    }
+  ],
+  "supported_events": [
+    "run.start",
+    "run.end",
+    "error",
+    "metric.custom"
+  ],
+  "notes": [
+    "插件桥接通道（--patch .mjs + ctx.on/emit）可用，为 P1 唯一逐条轨迹来源",
+    "凭据须以环境变量注入，headless 读不到 browser-session grant"
+  ]
+}

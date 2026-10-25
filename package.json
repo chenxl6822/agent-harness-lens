@@ -1,0 +1,24 @@
+{
+  "name": "harness-scope",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "gen": "node scripts/gen_all.mjs",
+    "check-gen": "node scripts/check_gen.mjs",
+    "lint": "node scripts/py.mjs -m ruff check engine",
+    "typecheck": "tsc -p tsconfig.base.json --noEmit",
+    "test": "node scripts/py.mjs -m pytest engine/tests -q -p no:cacheprovider",
+    "smoke": "node scripts/smoke.mjs",
+    "build:adapters": "npm run build -w @harness-scope/adapters-ts",
+    "test:adapters": "node --test \"packages/adapters-ts/test/**/*.test.mjs\"",
+    "bench:hook": "node scripts/bench_hook.mjs"
+  },
+  "devDependencies": {
+    "json-schema-to-typescript": "^16.0.0",
+    "prettier": "^3.3.3",
+    "typescript": "~5.6.3"
+  }
+}

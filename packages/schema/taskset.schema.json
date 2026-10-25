@@ -1,0 +1,145 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://harness-scope.dev/schema/taskset.json",
+  "title": "TaskSet",
+  "description": "评测任务集 YAML 结构（架构文档 §2.4.4）。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "taskset_id", "name_zh", "tasks"],
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0",
+      "description": "契约版本，固定为 SCHEMA_VERSION '1.0.0'"
+    },
+    "taskset_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "description": "任务集 ID（kebab-case）"
+    },
+    "name_zh": {
+      "type": "string",
+      "minLength": 1,
+      "description": "任务集中文名"
+    },
+    "defaults": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "timeout_s": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "单任务默认超时（秒）"
+        },
+        "budget_cny": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "单任务默认预算（人民币）"
+        },
+        "k": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "description": "pass^k 的重复次数，默认 3，上限 10"
+        },
+        "platform": {
+          "type": "string",
+          "enum": ["codebuddy", "dsh"],
+          "description": "被测平台"
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1,
+          "description": "A/B 实验中的固定变量：模型名"
+        },
+        "team": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "size": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "团队规模（仅 codebuddy Agent Teams 需要）"
+            },
+            "roles": {
+              "type": "array",
+              "items": { "type": "string" },
+              "minItems": 1,
+              "description": "角色列表，如 [lead, impl, review]"
+            }
+          }
+        }
+      }
+    },
+    "tasks": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/Task" }
+    }
+  },
+  "$defs": {
+    "Task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["task_id", "prompt", "verdict"],
+      "properties": {
+        "task_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "任务 ID（snake_case）"
+        },
+        "prompt": {
+          "type": "string",
+          "minLength": 1,
+          "description": "下发给被测智能体的任务描述"
+        },
+        "verdict": {
+          "$ref": "#/$defs/Verdict"
+        },
+        "artifacts_expect": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "预期产物路径列表"
+        },
+        "labels": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "任务标签（difficulty / category 等），开放结构"
+        }
+      }
+    },
+    "Verdict": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["assert", "script", "regex"],
+          "description": "判定器类型"
+        },
+        "run": {
+          "type": "string",
+          "description": "type=script 时的判定命令"
+        },
+        "pattern": {
+          "type": "string",
+          "description": "type=regex 时的匹配正则"
+        },
+        "assertions": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "type=assert 时的断言列表"
+        },
+        "timeout_s": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "判定器超时（秒），默认 60"
+        },
+        "expect_exit_code": {
+          "type": "integer",
+          "description": "type=script 时的期望退出码，默认 0"
+        }
+      }
+    }
+  }
+}

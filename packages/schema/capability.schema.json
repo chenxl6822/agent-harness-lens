@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://harness-scope.dev/schema/capability.json",
+  "title": "CapabilityReport",
+  "description": "能力探测报告（版本隔离层输出）。先探测再决定通道，绝不假设 API 存在。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["platform", "telemetry", "channels", "supported_events"],
+  "properties": {
+    "platform": {
+      "type": "string",
+      "enum": ["codebuddy", "dsh", "generic"],
+      "description": "被测平台"
+    },
+    "version": {
+      "type": "string",
+      "description": "探测到的平台版本号"
+    },
+    "telemetry": {
+      "type": "string",
+      "enum": ["ok", "degraded", "none"],
+      "description": "遥测能力总体状态"
+    },
+    "channels": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/ChannelStatus" },
+      "description": "各采集通道逐项探测结果"
+    },
+    "supported_events": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "run.start",
+          "run.end",
+          "session.start",
+          "session.end",
+          "agent.spawn",
+          "agent.stop",
+          "turn.start",
+          "turn.end",
+          "step.start",
+          "step.end",
+          "llm.request",
+          "llm.response",
+          "tool.call",
+          "tool.result",
+          "tool.error",
+          "task.create",
+          "task.claim",
+          "task.update",
+          "task.complete",
+          "message.send",
+          "message.recv",
+          "artifact.write",
+          "artifact.ref",
+          "context.compact",
+          "error",
+          "metric.custom"
+        ]
+      },
+      "description": "该平台实际可采集的事件类型（TraceEvent.type 的子集）"
+    },
+    "notes": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "降级原因、缺失能力说明"
+    }
+  },
+  "$defs": {
+    "ChannelStatus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["channel", "status"],
+      "properties": {
+        "channel": {
+          "type": "string",
+          "enum": ["hook", "file", "otlp", "sdk", "cli"],
+          "description": "采集通道"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["ok", "degraded", "none"],
+          "description": "该通道可用性"
+        },
+        "degraded": {
+          "type": "string",
+          "enum": ["L1", "L2", "L3"],
+          "description": "降级等级（dsh 三重降级链：L1 逐条轨迹 / L2 黑盒结果 / L3 仅元数据）"
+        },
+        "note": {
+          "type": "string",
+          "description": "该通道说明"
+        }
+      }
+    }
+  }
+}
