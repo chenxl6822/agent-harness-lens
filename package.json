@@ -14,7 +14,8 @@
     "smoke": "node scripts/smoke.mjs",
     "build:adapters": "npm run build -w @harness-scope/adapters-ts",
     "test:adapters": "node --test \"packages/adapters-ts/test/**/*.test.mjs\"",
-    "bench:hook": "node scripts/bench_hook.mjs"
+    "bench:hook": "node scripts/bench_hook.mjs",
+    "push:api": "node scripts/push-via-api.mjs"
   },
   "devDependencies": {
     "json-schema-to-typescript": "^16.0.0",
