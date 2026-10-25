@@ -44,3 +44,7 @@ agent/assistant-stream · agent/error · agent/status · agent/inbox/{claimed,di
 1. 启动时校验 `dsh --version`；非 rc.2 时阻断或显式降级（rc.3 seam/事件面未验证）。
 2. 开工三实验：internal/dispatch 参数值落盘；枚举 ctx.events/root/registry 找 agent/* 挂载点；拿到可运行 rc.3 后重跑探针。
 3. 事件名 → TraceEvent.type（26 枚举）映射表待上述实验后补充本文件。
+
+> **T04b（2026-10-25）已完成上述三实验**：internal/dispatch 实证为总线派发遥测镜像并承载工具/LLM/turn-step 全量轨迹；agent/* 经 `ctx.on` 直挂全量可达（11670 帧）；版本门禁规则落 `docs/dsh-version-gate.md`，映射草案落 `docs/dsh-bridge-contract.md`，实测数据在 `probe/rc3b/`。§3c 的缺口结论已被推翻——轨迹粒度可达 **full**（仅 rc.2）。
+>
+> ⚠️ **上句的 `full` 须读作 `full (single-agent)`**（WorkBuddy 验收补正）：该次运行 `agent/created` 仅 1 个 session、`subagent/*` 仅启动期 `provider-added`，子智能体实例为 0，多智能体轨迹**尚未验证**。另有三处结论需按 `docs/dsh-bridge-contract.md` §5 修正：`llm/stream` 仅 3 条且全为 session-title（主对话消息取 `agent/pre-step.messages`）；仅 start 帧带 turn/step；`callId` 脱敏导致配对不可复核。详见 `acceptance/G-T04b-验收报告.md`。
