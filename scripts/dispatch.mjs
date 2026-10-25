@@ -30,6 +30,87 @@ const REPO = path.resolve(import.meta.dirname, '..');
 const RUNS = path.join(REPO, 'runs');
 const LEDGER = path.join(RUNS, 'dispatch-ledger.jsonl');
 
+// ---------------------------------------------------------------- recheck
+// --recheck <runTag>：对一次已完成的派单重新取证并改写台账。
+// 用途：门禁自身有 bug 时事后修正——证据应该能反复重算，而不是一次性快照。
+{
+  const i = process.argv.indexOf('--recheck');
+  if (i !== -1 && process.argv[i + 1]) {
+    recheck(process.argv[i + 1]);
+    process.exit(0);
+  }
+}
+
+function recheck(tag) {
+  const dir = path.join(RUNS, tag);
+  const promptPath = path.join(dir, 'prompt.txt');
+  if (!fs.existsSync(promptPath)) {
+    console.error(`找不到 ${promptPath}`);
+    process.exit(2);
+  }
+  const text = fs.readFileSync(promptPath, 'utf8');
+  const m = tag.match(/(\d{4})-(\d{2})-(\d{2})T(\d{2})-(\d{2})-(\d{2})-(\d{3})Z$/);
+  if (!m) {
+    console.error('无法从 runTag 解析起始时间');
+    process.exit(2);
+  }
+  const sinceMs = Date.parse(`${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}.${m[7]}Z`);
+  const arts = codebuddyArtifacts(sinceMs);
+
+  let ev = null;
+  const sorted = arts.sessions.sort((a, b) => b.size - a.size);
+  for (const s of sorted) {
+    const v = verifyPromptInSession(s.path, text);
+    if (v.matched) {
+      ev = { sessionId: path.basename(s.path, '.jsonl'), file: s.path, bytes: s.size, ...v };
+      break;
+    }
+  }
+  if (!ev && sorted.length) {
+    const s = sorted[0];
+    ev = {
+      sessionId: path.basename(s.path, '.jsonl'),
+      file: s.path,
+      bytes: s.size,
+      matched: false,
+      reason: 'candidate-only: 提示词指纹未命中，仅为时间窗内最大的会话',
+      fingerprint: fingerprint(text),
+    };
+  }
+
+  if (!fs.existsSync(LEDGER)) {
+    console.error('台账文件不存在');
+    process.exit(2);
+  }
+  const lines = fs.readFileSync(LEDGER, 'utf8').split(/\r?\n/).filter(Boolean);
+  let hit = 0;
+  const out = lines.map((l) => {
+    let r;
+    try {
+      r = JSON.parse(l);
+    } catch {
+      return l;
+    }
+    if (r.runTag !== tag) return l;
+    hit++;
+    r.evidence = r.evidence || {};
+    r.evidence.codebuddySession = ev;
+    r.evidence.codebuddyTraces = arts.traces.sort((a, b) => b.size - a.size).slice(0, 3);
+    r.verdict = r.verdict || {};
+    r.verdict.dispatchedToCodeBuddy = Boolean(ev?.matched);
+    r.recheckedAt = new Date().toISOString();
+    r.recheckNote = '由 --recheck 重算：修复了 jsonl 反斜杠转义导致原文比对误判的 bug';
+    return JSON.stringify(r);
+  });
+  fs.writeFileSync(LEDGER, out.join('\n') + '\n', 'utf8');
+  console.log(`[recheck] ${tag}`);
+  console.log(`  命中记录      ${hit} 条`);
+  console.log(`  候选会话      ${sorted.length} 个（时间窗内）`);
+  console.log(`  采用会话      ${ev ? ev.sessionId : '无'}`);
+  console.log(`  提示词原文命中 ${ev?.matched ? '是' : '否'}`);
+}
+
+
 // ---------------------------------------------------------------- args
 function arg(name, dflt = null) {
   const i = process.argv.indexOf(`--${name}`);
@@ -121,9 +202,21 @@ function codebuddyArtifacts(sinceMs) {
   return found;
 }
 
+/** 递归收集对象里所有字符串值，用于在「解码后」的文本上做比对 */
+function flattenStrings(v, out = []) {
+  if (typeof v === 'string') out.push(v);
+  else if (Array.isArray(v)) for (const x of v) flattenStrings(x, out);
+  else if (v && typeof v === 'object') for (const x of Object.values(v)) flattenStrings(x, out);
+  return out;
+}
+
 /**
  * 在会话文件里找提示词原文。
  * 这是"任务确实交给了 CodeBuddy"最硬的证据：它由 CodeBuddy 自己写入，WorkBuddy 无法伪造。
+ *
+ * 【曾经的 bug】第一版直接拿 jsonl 的原始字节做子串匹配。但 jsonl 里反斜杠会被转义成 `\\`，
+ * 所以只要提示词里出现 Windows 路径（C:\Users\...），比对必然失败——冒烟用例恰好没有反斜杠，
+ * 于是"通过"了，直到 T04a 才暴露。现在改为先 JSON.parse 再在解码后的文本上比对。
  */
 function verifyPromptInSession(sessionPath, promptText) {
   const fp = fingerprint(promptText);
@@ -131,22 +224,27 @@ function verifyPromptInSession(sessionPath, promptText) {
   try {
     raw = fs.readFileSync(sessionPath, 'utf8');
   } catch {
-    return { matched: false, reason: 'unreadable' };
+    return { matched: false, reason: 'unreadable', fingerprint: fp };
   }
-  const flat = raw.replace(/\s+/g, ' ');
-  const matched = flat.includes(fp);
-  // 顺带取第一条用户消息，便于人工对照
+  let matched = false;
   let firstUser = null;
   for (const line of raw.split(/\r?\n/)) {
     if (!line.trim()) continue;
+    let d;
     try {
-      const d = JSON.parse(line);
-      if (d.type === 'user') {
-        const c = d.message?.content ?? d.content;
-        firstUser = typeof c === 'string' ? c : JSON.stringify(c);
-        break;
-      }
-    } catch {}
+      d = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (!matched) {
+      const flat = flattenStrings(d).join(' ').replace(/\s+/g, ' ');
+      if (flat.includes(fp)) matched = true;
+    }
+    if (!firstUser && d.type === 'user') {
+      const c = d.message?.content ?? d.content;
+      firstUser = typeof c === 'string' ? c : JSON.stringify(c);
+    }
+    if (matched && firstUser) break;
   }
   return { matched, fingerprint: fp, firstUser: firstUser ? firstUser.slice(0, 300) : null };
 }
@@ -240,7 +338,8 @@ const artifacts = codebuddyArtifacts(startMs);
 
 // 逐个会话文件校验提示词原文；取命中的那一个作为"本次派单的 CodeBuddy 会话"
 let sessionEvidence = null;
-for (const s of artifacts.sessions.sort((a, b) => b.size - a.size)) {
+const sorted = artifacts.sessions.sort((a, b) => b.size - a.size);
+for (const s of sorted) {
   const v = verifyPromptInSession(s.path, prompt);
   if (v.matched) {
     sessionEvidence = {
@@ -251,6 +350,18 @@ for (const s of artifacts.sessions.sort((a, b) => b.size - a.size)) {
     };
     break;
   }
+}
+// 未命中时不要只说"没有"——把最像的那个作为候选列出来，供人工判断
+if (!sessionEvidence && sorted.length) {
+  const s = sorted[0];
+  sessionEvidence = {
+    sessionId: path.basename(s.path, '.jsonl'),
+    file: s.path,
+    bytes: s.size,
+    matched: false,
+    reason: 'candidate-only: 提示词指纹未命中，仅为时间窗内最大的会话',
+    fingerprint: fingerprint(prompt),
+  };
 }
 const traceEvidence = artifacts.traces.sort((a, b) => b.size - a.size).slice(0, 3);
 
