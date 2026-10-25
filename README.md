@@ -67,7 +67,7 @@ session.start → turn.start → tool.call → tool.result → turn.end
 | 跨语言契约 | ✅ | 4 份 JSON Schema 为唯一真源，TS / Python 类型全部生成，永不手写 |
 | CodeBuddy Hook 采集 | ✅ | 12 类 Hook 全映射；真实会话实测触发 5 事件；hook 净开销 ~45ms，不影响被测 Agent |
 | dsh 采集通道探针 | ✅ | 实测结论：dsh 0.2.1-rc.2 **无原生 OTLP**、会话日志**只有会话头**、`--patch` 插件桥接**可用** |
-| Teams/Tasks 文件采集 | ⏳ | 待开发 |
+| 文件采集通道 | ✅ | trace / transcript / tasks 三通道；1452 个 span 解析零误差、调用树零环、增量 p95 8ms |
 | dsh 插件桥接 | ⏳ | 待开发 |
 | 存储 / 指标引擎 / 报告 | ⏳ | 待开发 |
 

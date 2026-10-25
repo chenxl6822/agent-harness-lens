@@ -10,6 +10,7 @@ export * from './redact.js';
 export * from './spool.js';
 export * from './capability.js';
 export * from './normalize.js';
+export * from './codebuddy/index.js';
 
 export interface CreateAdapterOptions {
   runId?: string;
