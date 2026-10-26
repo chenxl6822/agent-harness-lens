@@ -1,0 +1,64 @@
+QA T06 黑盒复核（真实数据产物）
+  db=.tmp-qa\qa-t06.db run_id=qa-t06-primary
+
+== G2 schema 合规 ==
+  [OK ] G2-1 hs schema check --kind metric-set exit 0: OK metric-set: <HOME>\WorkBuddy\项目1012\harness_scope\.tmp-qa\final\metricset.json
+  [OK ] G2-2 git diff packages/schema/ 为空: diff=''
+
+== G5 可下钻（每条 event_id 必须带 run_id 命中库）==
+    非空指标 4 个，event_id 合计 117 条，未命中 0 条
+  [OK ] G5-3 全部 event_id 命中库: 未命中 0/117
+    （同一 db 内该 run 的事件跨 run 复用计数上限=1）
+
+== G6 可复现（双向断言）==
+    引擎报 canonical : sha256:fe972c39c263411d1602d0ff7a913725f82dbbed0b70e80ee3e14bcb2fdd3805
+    QA 独立复算      : sha256:fe972c39c263411d1602d0ff7a913725f82dbbed0b70e80ee3e14bcb2fdd3805
+  [OK ] G6-① 两次 canonical_sha256 相同: sha256:fe972c39c263411d1… == sha256:fe972c39c263411d1…
+  [OK ] G6-①b QA 独立实现复算与引擎一致: 按 docs §3 定义独立实现，逐 bit 一致
+  [OK ] G6-② 文件字节 sha256 必须不同: 文件1 sha256:7aa305dc441806442… vs 文件2 sha256:614393ce04acea3f6…（证明 computed_at 确实在变）
+  [OK ] G6-②b 差异确实来自 computed_at: 2026-10-26T06:28:32.282752Z != 2026-10-26T06:28:33.513568Z
+  [OK ] G6-③ NaN/Infinity 命中 0: 命中 0 次
+  [OK ] G6-④ 含 computed_at 的整体摘要 ≠ canonical_sha256: 证明 canonical 确实排除了 computed_at（不是碰巧相同）
+
+== G10 隐私红线 ==
+  [OK ] G10 metricset.json 命中 0: 扫描 8897 字符，0 命中
+  [OK ] G10 metricset.ext.json 命中 0: 扫描 21598 字符，0 命中
+
+== ext 命名合规（架构师/主理人裁定：ext 侧必须叫 degraded_reasons）==
+    ext['degraded_metrics'] 存在=True 类型=dict
+    ext['degraded_reasons'] 存在=True 类型=dict
+  [FAIL] 命名裁定：ext 不得出现名为 degraded_metrics 的映射: 实际 ext['degraded_metrics'] 是 dict（裁定要求 ext 侧因字典一律用 degraded_reasons）
+  [OK ] 命名裁定：ext['degraded_reasons'] 必须是 dict: 实际 dict
+
+== G13 降级诚实（9 项，reason 与 PRD §4 对齐）==
+  [OK ] G13-0 降级项数 = 9: 实际 9 项：['cost.cny', 'cost.tokens_in', 'cost.tokens_out', 'cost.tokens_total', 'cost.wall_clock_p50', 'cost.wall_clock_p95', 'process.trajectory_efficiency', 'result.pass_k', 'result.success']
+  [OK ] G13-1 result.success: 期望 needs_input，实测 needs_input
+  [OK ] G13-1 result.pass_k: 期望 no_source，实测 no_source
+  [OK ] G13-1 process.trajectory_efficiency: 期望 no_source，实测 no_source
+  [OK ] G13-1 cost.tokens_total: 期望 no_source，实测 no_source
+  [OK ] G13-1 cost.tokens_in: 期望 no_source，实测 no_source
+  [OK ] G13-1 cost.tokens_out: 期望 no_source，实测 no_source
+  [OK ] G13-1 cost.cny: 期望 no_source，实测 no_source
+  [OK ] G13-1 cost.wall_clock_p50: 期望 no_source，实测 no_source
+  [OK ] G13-1 cost.wall_clock_p95: 期望 no_source，实测 no_source
+  [OK ] G13-2 每项都有非空 detail: 缺 detail：[]
+
+== G1 注册器可插拔（第三方模块 --extra-module）==
+  [OK ] G1-0 未加载时 list 不含探针（证明不是硬编码进注册表）: 默认 list 命中=False
+  [OK ] G1-1 --extra-module 计算成功: exit=0 
+  [OK ] G1-2 第三方指标被装配并出值: computed_keys=['process.qa_probe_metric', 'process.redundant_loop', 'process.retry_rate', 'process.step_count', 'process.tool_correctness']
+  [OK ] G1-3 第三方指标落进 schemas 合规主文件: 命中=True
+
+== CLI 退出码约定 ==
+  [OK ] primary_only → exit 0: exit=0
+  [OK ] merge run → exit 2: exit=2
+  [OK ] 不存在的 run → 非 0 且有明确报错: exit=2 stderr=METRICS ERROR: run 不存在: '__no_such_run__'
+  [OK ] hs metrics list exit 0 且列 13 项: exit=0，输出行数 14
+
+============================================================
+{
+  "total_failures": 1,
+  "failures": [
+    "命名裁定：ext 不得出现名为 degraded_metrics 的映射: 实际 ext['degraded_metrics'] 是 dict（裁定要求 ext 侧因字典一律用 degraded_reasons）"
+  ]
+}

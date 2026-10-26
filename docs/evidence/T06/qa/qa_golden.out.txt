@@ -1,0 +1,22 @@
+== G4 golden trace 口径复核 ==
+  [OK ] process.step_count             期望 3.0  实测 3.0
+  [OK ] process.tool_correctness       期望 0.833333  实测 0.833333
+  [OK ] process.redundant_loop         期望 2.0  实测 2.0
+  [OK ] process.retry_rate             期望 0.166667  实测 0.166667
+== G4b confidence 规则复核（Q7 / T06-09b）==
+  [FAIL] process.step_count             裁定应填 'low'    实测 None
+  [OK ] process.tool_correctness       裁定应填 'low'    实测 'low'
+  [FAIL] process.redundant_loop         裁定应填 'low'    实测 None
+  [OK ] process.retry_rate             裁定应填 'low'    实测 'low'
+== G15① 合成用例恒等式硬断言 ==
+  tool.call 6 == tool.result 5 + tool.error 1 = 6 → True
+== G1b 重复注册同 key 必须显式报错 ==
+  [OK ] 抛出 MetricRegistryError: 重复注册指标 'process.step_count'（已有 hs_core.metrics_core.step_cou…
+
+{
+  "failures": [
+    "process.step_count.confidence: 裁定 'low'，实测 None",
+    "process.redundant_loop.confidence: 裁定 'low'，实测 None"
+  ],
+  "n_fail": 2
+}

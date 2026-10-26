@@ -1,0 +1,15 @@
+### G11 真实数据摄入（QA 自摄，primary_only）
+{
+  "run_id": "qa-t06-primary",
+  "db": ".tmp-qa\\qa-t06.db",
+  "channel_policy": "primary_only",
+  "lines_in": 14520,
+  "units_expanded": 15068,
+  "mapped": 12411,
+  "dropped": 2657,
+  "inserted": 0,
+  "updated": 0,
+  "skipped": 12411,
+  "total": 12411,
+  "events_in_db": 12411
+}

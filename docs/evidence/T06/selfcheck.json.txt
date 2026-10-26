@@ -1,0 +1,165 @@
+{
+  "db": "runs\\t06\\t06.db",
+  "run_id": "t06-codebuddy-primary",
+  "params_digest": "sha256:183639ba43af8de8e7ea308964687bad42acc24b91d12e362ee510572c8a6c29",
+  "python": "python.exe",
+  "run": {
+    "channel_policy": "primary_only",
+    "platform": "codebuddy",
+    "event_count": 9809
+  },
+  "G11_cli": {
+    "exit": 0,
+    "stdout": "{\"run_id\": \"t06-codebuddy-primary\", \"blocked\": false, \"computed_keys\": [\"process.redundant_loop\", \"process.retry_rate\", \"process.step_count\", \"process.tool_correctness\"], \"degraded_keys\": [\"cost.cny\", \"cost.tokens_in\", \"cost.tokens_out\", \"cost.tokens_total\", \"cost.wall_clock_p50\", \"cost.wall_clock_p95\", \"process.trajectory_efficiency\", \"result.pass_k\", \"result.success\"], \"canonical_sha256\": \"sha256:e73a790cbeb2fcef44bb3a47a2df129ae0c82efefa410769b20929c0e3c8211c\", \"params_digest\": \"sha256:183639ba43af8de8e7ea308964687bad42acc24b91d12e362ee510572c8a6c29\", \"event_count\": 9809, \"elapsed_ms\": 118.313, \"data_quality_flags\": [\"tool_call_identity_violated\", \"tool_call_signature_degenerate\"], \"out_dir\": \"<HOME>\\\\WorkBuddy\\\\项目1012\\\\harness_scope\\\\.tmp-t06\\\\run\", \"computed_keys_n\": 4, \"degraded_keys_n\": 9, \"blocked_reason\": null}",
+    "ok": true
+  },
+  "G1_registry": {
+    "builtin_modules": [
+      "hs_core.metrics_core"
+    ],
+    "builtin_keys_n": 13,
+    "builtin_keys": [
+      "cost.cny",
+      "cost.tokens_in",
+      "cost.tokens_out",
+      "cost.tokens_total",
+      "cost.wall_clock_p50",
+      "cost.wall_clock_p95",
+      "process.redundant_loop",
+      "process.retry_rate",
+      "process.step_count",
+      "process.tool_correctness",
+      "process.trajectory_efficiency",
+      "result.pass_k",
+      "result.success"
+    ],
+    "collab_keys": [],
+    "extra_module": "docs\\evidence\\T06\\ext_probe.py",
+    "extra_key_visible": true,
+    "cli_extra_module_exit": 0,
+    "cli_lists_probe_key": true,
+    "duplicate_key_error": true,
+    "duplicate_key_message": "重复注册指标 'process.step_count'（已有 hs_core.metrics_core.step_count）；如需替换请先显式 clear_registry()",
+    "ok": true
+  },
+  "G2_schema": {
+    "jsonschema_errors": 0,
+    "first_errors": [],
+    "cli_exit": 0,
+    "cli_stdout": "OK metric-set: <HOME>\\WorkBuddy\\项目1012\\harness_scope\\.tmp-t06\\run\\metricset.json",
+    "git_diff_packages_schema": "",
+    "git_status_packages_schema": "",
+    "ok": true
+  },
+  "G3_policy_gate": {
+    "merge_run": "t06-codebuddy-primary-merge-probe",
+    "events_used": 200,
+    "blocked": true,
+    "blocked_reason": "channel_policy != 'primary_only'：merge 流工具类指标重复近一倍（引用：主理人探针实测 tool.call 1416 vs 727，见 docs/channel-priority.md；非本次运行观测），不得作为指标口径（T06-03）",
+    "all_values_null": true,
+    "all_keys_degraded": true,
+    "degraded_reasons": [
+      "blocked"
+    ],
+    "cli_exit": 2,
+    "ok": true
+  },
+  "G5_drilldown": {
+    "non_null_metrics": 4,
+    "non_null_without_evidence_index": [],
+    "non_null_with_empty_evidence": [],
+    "event_ids_total": 117,
+    "event_ids_resolved_in_db": 117,
+    "ok": true
+  },
+  "G6_reproducibility": {
+    "canonical_sha256_run1": "sha256:e73a790cbeb2fcef44bb3a47a2df129ae0c82efefa410769b20929c0e3c8211c",
+    "canonical_sha256_run2": "sha256:e73a790cbeb2fcef44bb3a47a2df129ae0c82efefa410769b20929c0e3c8211c",
+    "recomputed_from_file_bytes": "sha256:e73a790cbeb2fcef44bb3a47a2df129ae0c82efefa410769b20929c0e3c8211c",
+    "file_recompute_matches": true,
+    "identical": true,
+    "computed_at_run1": "2026-10-26T00:00:00+00:00",
+    "computed_at_run2": "2027-12-31T23:59:59+00:00",
+    "computed_at_excluded": true,
+    "nan_or_infinity_hits": 0,
+    "ok": true
+  },
+  "G10_privacy": {
+    "home_prefix": 0,
+    "windows_user_dir": 0,
+    "posix_home_dir": 0,
+    "username_literal": 0,
+    "raw_ref_hits": 0,
+    "raw_ref_rows_in_db": 9809,
+    "ok": true
+  },
+  "G13_degraded": {
+    "prd_expected": {
+      "result.success": "needs_input",
+      "result.pass_k": "no_source",
+      "process.trajectory_efficiency": "no_source",
+      "cost.tokens_total": "no_source",
+      "cost.tokens_in": "no_source",
+      "cost.tokens_out": "no_source",
+      "cost.cny": "no_source",
+      "cost.wall_clock_p50": "no_source",
+      "cost.wall_clock_p95": "no_source"
+    },
+    "actual": {
+      "cost.cny": "no_source",
+      "cost.tokens_in": "no_source",
+      "cost.tokens_out": "no_source",
+      "cost.tokens_total": "no_source",
+      "cost.wall_clock_p50": "no_source",
+      "cost.wall_clock_p95": "no_source",
+      "process.trajectory_efficiency": "no_source",
+      "result.pass_k": "no_source",
+      "result.success": "needs_input"
+    },
+    "mismatch": {},
+    "reasons_outside_enum": [],
+    "ok": true
+  },
+  "G15_tool_call_identity": {
+    "tool_call": 921,
+    "tool_result": 908,
+    "tool_error": 12,
+    "identity_holds": false,
+    "errored_calls": 12,
+    "unmatched_errors": 0,
+    "unmatchable_calls": 0,
+    "paired_by": {
+      "span_id": 12,
+      "call_id": 0,
+      "signature": 0
+    },
+    "event_count": 9809,
+    "snapshot_digest": "sha256:1817fe29e29b37d4",
+    "data_quality_flags": [
+      "tool_call_identity_violated",
+      "tool_call_signature_degenerate"
+    ],
+    "note_excerpt": "deny/permission 信号当前无数据源（本 run 扫描 9809 条事件，deny/permission 标记命中 0），本值为正确率上界，口径为派生；分母=tool.call 921 次；分子=无配对 error 的调用 909 次（错误调用 12 次）；error 事件 12 个（tool.error ∪ is_error=True）：配对成功 12 / unmatched_errors 0；配对层级命中 span_id 12 / call_id 0 / 同签名最近邻 0；unmatchable_calls 0 次（span_id/call_id/签名三键全无，只能计为无配对，属上界口径）；恒等式 tool.call 921 vs tool.result 908 + tool.error 12 = 920（不成立，见 ext.data_quality_flags）",
+    "ok": true
+  },
+  "E5P_token_source_probe": {
+    "llm_response_total": 765,
+    "llm_response_with_usage": 0,
+    "metric_custom_total": 33,
+    "metric_custom_with_total_tokens": 33,
+    "metric_custom_positive_total_tokens": 0,
+    "metric_custom_tokens_sum": 0
+  },
+  "G11_real_data": {
+    "run_id": "t06-codebuddy-primary",
+    "event_count": 9809,
+    "elapsed_ms": 129.77,
+    "computed_keys_n": 4,
+    "degraded_keys_n": 9,
+    "process.redundant_loop": 1.0,
+    "process.retry_rate": 0.002172,
+    "process.step_count": 2567.0,
+    "process.tool_correctness": 0.986971
+  },
+  "ok": true
+}

@@ -1,0 +1,58 @@
+$ .venv/Scripts/python.exe -m hs_core.cli metrics list
+KEY                            GROUP    UNIT    DIRECTION  SCOPE  VERSION
+cost.cny                       cost     cny     down       run    1.0.0
+cost.tokens_in                 cost     tokens  down       run    1.0.0
+cost.tokens_out                cost     tokens  down       run    1.0.0
+cost.tokens_total              cost     tokens  down       run    1.0.0
+cost.wall_clock_p50            cost     ms      down       group  1.0.0
+cost.wall_clock_p95            cost     ms      down       group  1.0.0
+process.redundant_loop         process  count   down       run    1.0.0
+process.retry_rate             process  ratio   down       run    1.0.0
+process.step_count             process  count   -          run    1.0.0
+process.tool_correctness       process  ratio   up         run    1.0.0
+process.trajectory_efficiency  process  ratio   down       group  1.0.0
+result.pass_k                  result   ratio   up         group  1.0.0
+result.success                 result   ratio   up         run    1.0.0
+
+$ .venv/Scripts/python.exe -m hs_core.cli metrics run --run-id t06-codebuddy-primary --db runs/t06/t06.db --out-dir runs/t06/metrics --pretty
+{
+  "run_id": "t06-codebuddy-primary",
+  "blocked": false,
+  "computed_keys": [
+    "process.redundant_loop",
+    "process.retry_rate",
+    "process.step_count",
+    "process.tool_correctness"
+  ],
+  "degraded_keys": [
+    "cost.cny",
+    "cost.tokens_in",
+    "cost.tokens_out",
+    "cost.tokens_total",
+    "cost.wall_clock_p50",
+    "cost.wall_clock_p95",
+    "process.trajectory_efficiency",
+    "result.pass_k",
+    "result.success"
+  ],
+  "canonical_sha256": "sha256:e73a790cbeb2fcef44bb3a47a2df129ae0c82efefa410769b20929c0e3c8211c",
+  "params_digest": "sha256:183639ba43af8de8e7ea308964687bad42acc24b91d12e362ee510572c8a6c29",
+  "event_count": 9809,
+  "elapsed_ms": 110.137,
+  "data_quality_flags": [
+    "tool_call_identity_violated",
+    "tool_call_signature_degenerate"
+  ],
+  "out_dir": "runs\\t06\\metrics",
+  "computed_keys_n": 4,
+  "degraded_keys_n": 9,
+  "blocked_reason": null
+}
+exit=0
+
+$ .venv/Scripts/python.exe -m hs_core.cli schema check runs/t06/metrics/metricset.json --kind metric-set
+OK metric-set: runs\t06\metrics\metricset.json
+exit=0
+
+$ git status --porcelain packages/schema/
+(empty = schema 未改)

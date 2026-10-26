@@ -1,0 +1,390 @@
+{
+  "card": "T06-R2",
+  "generated_at": "2026-10-26",
+  "run_id": "t06-codebuddy-primary",
+  "event_count": 9809,
+  "params_digest": "sha256:183639ba43af8de8e7ea308964687bad42acc24b91d12e362ee510572c8a6c29",
+  "canonical_sha256": "sha256:1f40b822c4c88c7cb697843efb2d5a53a6a3eac4f993e3b678800c68a38a3b04",
+  "params": {
+    "loop_min_repeat": 2,
+    "loop_max_period": 5,
+    "retry_window_ms": 60000,
+    "retry_window_events": 10,
+    "low_confidence_n": 20,
+    "max_evidence_ids": 50,
+    "idle_threshold_s": 30.0,
+    "effect_window_s": 30.0,
+    "message_merge_key": "message_id",
+    "wall_clock_quantiles": [
+      0.5,
+      0.95
+    ],
+    "tokens_trace_summary_fallback": false,
+    "pricing": {}
+  },
+  "how_to_reproduce": ".venv/Scripts/python.exe scripts/t06_r2_check.py --metrics runs/t06/metrics --db runs/t06/t06.db --run-id t06-codebuddy-primary --out probe/t06/R2-result.json",
+  "metrics_recomputed_with_current_code": {
+    "exit": 0,
+    "ok": true,
+    "stderr_tail": []
+  },
+  "naming_check": {
+    "main_degraded_metrics_is_list_of_str": true,
+    "main_degraded_metrics_n": 9,
+    "ext_degraded_reasons_is_mapping_with_reason_detail": true,
+    "ext_degraded_reasons_n": 9,
+    "ext_has_degraded_metrics_key": false,
+    "main_has_degraded_reasons_key": false,
+    "same_key_set": true,
+    "ok": true
+  },
+  "key_count_check": {
+    "total": 13,
+    "computed": 4,
+    "degraded": 9,
+    "consistent": true,
+    "expected_total": 13,
+    "expected_computed": 4,
+    "expected_degraded": 9,
+    "computed_matches_expected": true,
+    "degraded_matches_expected": true,
+    "computed_keys": [
+      "process.redundant_loop",
+      "process.retry_rate",
+      "process.step_count",
+      "process.tool_correctness"
+    ],
+    "degraded_keys": [
+      "cost.cny",
+      "cost.tokens_in",
+      "cost.tokens_out",
+      "cost.tokens_total",
+      "cost.wall_clock_p50",
+      "cost.wall_clock_p95",
+      "process.trajectory_efficiency",
+      "result.pass_k",
+      "result.success"
+    ],
+    "ext_key_count_check": {
+      "total": 13,
+      "computed": 4,
+      "degraded": 9,
+      "consistent": true,
+      "expected_total": 13,
+      "expected_computed": 4,
+      "expected_degraded": 9,
+      "computed_matches_expected": true,
+      "degraded_matches_expected": true,
+      "missing_keys": [],
+      "extension_keys": [],
+      "computed_keys": [
+        "process.redundant_loop",
+        "process.retry_rate",
+        "process.step_count",
+        "process.tool_correctness"
+      ],
+      "degraded_keys": [
+        "cost.cny",
+        "cost.tokens_in",
+        "cost.tokens_out",
+        "cost.tokens_total",
+        "cost.wall_clock_p50",
+        "cost.wall_clock_p95",
+        "process.trajectory_efficiency",
+        "result.pass_k",
+        "result.success"
+      ]
+    },
+    "ok": true
+  },
+  "drilldown": {
+    "event_ids_total": 117,
+    "event_ids_resolved_in_db": 117,
+    "unresolved": [],
+    "hit_rate": 1.0,
+    "per_key": {
+      "process.redundant_loop": 1,
+      "process.retry_rate": 4,
+      "process.step_count": 50,
+      "process.tool_correctness": 62
+    },
+    "ext_evidence_index_ids": 117,
+    "ext_evidence_index_unresolved": [],
+    "event_id_unique_needs_run_id": true,
+    "ok": true
+  },
+  "confidence_audit": {
+    "rule": "签名类指标按来源等级动态判定：原生（去重取值数 > 1 且 proxy == 0）→ 叠加样本量阈值；代理（去重取值数 == 1）→ low；键缺失（去重取值数 == 0）→ 不得判代理，走未知分支 low；混合 → low；上界/派生 → 恒 low；样本不足（n < low_confidence_n）在上述基础上再降取最低者；降级一律 null。非签名指标按 Q7 样本量规则。档位由代码动态判定，禁止写死到 key",
+    "signature_source": {
+      "n_calls": 921,
+      "distinct_own_values": 1,
+      "proxy_joined": 920,
+      "empty_own": 921,
+      "native": 0,
+      "source_level": "proxy",
+      "basis": "content_sha256 去重取值数 == 1（全为常量，签名实为 span_id）",
+      "ok": true
+    },
+    "by_key": {
+      "cost.cny": {
+        "value": null,
+        "confidence": null,
+        "expected": null,
+        "signature_source": null
+      },
+      "cost.tokens_in": {
+        "value": null,
+        "confidence": null,
+        "expected": null,
+        "signature_source": null
+      },
+      "cost.tokens_out": {
+        "value": null,
+        "confidence": null,
+        "expected": null,
+        "signature_source": null
+      },
+      "cost.tokens_total": {
+        "value": null,
+        "confidence": null,
+        "expected": null,
+        "signature_source": null
+      },
+      "cost.wall_clock_p50": {
+        "value": null,
+        "confidence": null,
+        "expected": null,
+        "signature_source": null
+      },
+      "cost.wall_clock_p95": {
+        "value": null,
+        "confidence": null,
+        "expected": null,
+        "signature_source": null
+      },
+      "process.redundant_loop": {
+        "value": 1.0,
+        "confidence": "low",
+        "expected": "low",
+        "signature_source": "proxy"
+      },
+      "process.retry_rate": {
+        "value": 0.002172,
+        "confidence": "low",
+        "expected": "low",
+        "signature_source": "proxy"
+      },
+      "process.step_count": {
+        "value": 2567.0,
+        "confidence": "high",
+        "expected": "high",
+        "signature_source": null
+      },
+      "process.tool_correctness": {
+        "value": 0.986971,
+        "confidence": "low",
+        "expected": "low",
+        "signature_source": null
+      },
+      "process.trajectory_efficiency": {
+        "value": null,
+        "confidence": null,
+        "expected": null,
+        "signature_source": null
+      },
+      "result.pass_k": {
+        "value": null,
+        "confidence": null,
+        "expected": null,
+        "signature_source": null
+      },
+      "result.success": {
+        "value": null,
+        "confidence": null,
+        "expected": null,
+        "signature_source": null
+      }
+    },
+    "valued_without_confidence": [],
+    "degraded_with_confidence": [],
+    "mismatched_vs_expected": [],
+    "ok": true
+  },
+  "redundant_loop_check": {
+    "value": 1.0,
+    "expected": 1.0,
+    "value_is_one": true,
+    "reverse_bound": 50,
+    "within_reverse_bound": true,
+    "basis": "三份独立快照（主理人 9098 / 架构师 9809 / QA 12411 事件）实测一致 == 1；> 50 视为签名口径失效的特征值（架构师反事实实测 602，539 次 Bash 全同签名）",
+    "ok": true
+  },
+  "signature_source": {
+    "wording": "签名口径：优先取 `tool.call` 的 `content_sha256`；检测到该字段在本 run 内去重后取值数 ≤ 1 时（当前实测 921/921 全为 `sha256(\"\")` 常量），回退到 `span_id` → `span_end` 补齐的内容哈希。**不得以「键缺失」作为回退依据**——键缺失与「键存在但值恒为常量」是两种状态，后者才是当前实况。",
+    "wording_consistency": {
+      "wording": "签名口径：优先取 `tool.call` 的 `content_sha256`；检测到该字段在本 run 内去重后取值数 ≤ 1 时（当前实测 921/921 全为 `sha256(\"\")` 常量），回退到 `span_id` → `span_end` 补齐的内容哈希。**不得以「键缺失」作为回退依据**——键缺失与「键存在但值恒为常量」是两种状态，后者才是当前实况。",
+      "docs_metrics_engine_md_matches": true,
+      "code_comment_matches": true,
+      "result_json_matches": true,
+      "locations": [
+        "docs/metrics-engine.md §7-1",
+        "engine/hs_core/metrics_core.py (_call_signatures 附近)",
+        "probe/t06/R2-result.json signature_source"
+      ],
+      "ok": true
+    },
+    "this_run": {
+      "n_calls": 921,
+      "distinct_own_values": 1,
+      "proxy_joined": 920,
+      "empty_own": 921,
+      "native": 0,
+      "source_level": "proxy",
+      "basis": "content_sha256 去重取值数 == 1（全为常量，签名实为 span_id）",
+      "ok": true
+    },
+    "ok": true
+  },
+  "signature_audit": {
+    "tool.call": {
+      "n": 921,
+      "distinct": 1,
+      "all_same": true,
+      "distinct_ratio": 0.001086
+    },
+    "span_end": {
+      "n": 920,
+      "distinct": 869,
+      "all_same": false,
+      "distinct_ratio": 0.944565
+    },
+    "usable_as_signature": {
+      "tool.call": false,
+      "span_end": true
+    },
+    "ok": true
+  },
+  "identity_check": {
+    "identity_holds": false,
+    "tool_call": 921,
+    "tool_result": 908,
+    "tool_error": 12,
+    "event_count": 9809,
+    "snapshot_digest": "sha256:1817fe29e29b37d4",
+    "missing_fields": [],
+    "flag_reported": true,
+    "reported_not_failed": true,
+    "data_quality_flags": [
+      "tool_call_identity_violated",
+      "tool_call_signature_degenerate"
+    ],
+    "ok": true
+  },
+  "gates": {
+    "schema": {
+      "errors": 0,
+      "first_errors": [],
+      "ok": true
+    },
+    "privacy": {
+      "windows_user_paths": 0,
+      "posix_home_paths": 0,
+      "raw_ref_hits": 0,
+      "home_dir_hits": 0,
+      "raw_ref_rows_in_db": 9809,
+      "ok": true
+    },
+    "packages_schema_untouched": {
+      "git_diff": "",
+      "git_status": "",
+      "ok": true
+    },
+    "pytest": {
+      "exit": 0,
+      "summary": "87 passed in 1.70s",
+      "basetemp": ".tmp-r2-pytest-dd9a4129",
+      "ok": true
+    }
+  },
+  "decisions": {
+    "R2-1_confidence_by_source_level": {
+      "ruling": "推翻 R1-5 对 retry_rate / redundant_loop 记 high 的裁定。confidence 按签名来源等级动态判定：原生（content_sha256 去重取值数 > 1 且 proxy == 0）→ 叠加样本量阈值取最低者；代理（去重取值数 == 1）→ low；键缺失（去重取值数 == 0）→ 不得判代理，走未知分支 low + note「签名来源未采集」；混合 → low；上界/派生 → 恒 low；降级 → null。样本量回答「够不够」，来源等级回答「准不准」",
+      "why_not_hardcode": "写死 low 等于把「现在测不准」固化成「永远测不准」——T05 v2 补到真实 content 后签名自动从代理变回原生，这两个指标必须自动升 high",
+      "implementation_trap": "_usable_hash() 对「键缺失」和「值为空常量」都返回 None，而 empty_own 只统计后者，两者不是补集；禁止 native = total - empty_own 反推，原生的正向条件是 proxy == 0。反例单测 test_native_signature_count_ignores_missing_key 拦截"
+    }
+  },
+  "r2_items": {
+    "R2-1": {
+      "status": "fixed",
+      "why": "R1-5 的裁定被推翻：retry_rate / redundant_loop 按 n≥20 记 high 是错的——tool.call 的 content_sha256 1124/1124 全为 sha256(\"\") 同一常量（signature_audit 证实 distinct=1, all_same=true），调用签名实为 span_id 这类代理键。样本量回答「够不够」，来源等级回答「准不准」，是两个问题。",
+      "done": "confidence 改为按来源等级动态判定（原生→叠加样本量阈值；代理/键缺失/混合→low；上界→low；降级→null），由 metrics_core._signature_confidence 实现，**禁止写死到 key**——T05 v2 补到真实 content 后自动升 high。实现正向计数：native 只数自身可用哈希、proxy 只数 span_end 补齐，原生的正向条件是 proxy == 0（禁止 native = total - empty_own 反推，两者不是补集）",
+      "evidence": [
+        "confidence_audit",
+        "signature_audit",
+        "signature_source"
+      ],
+      "tests": [
+        "test_native_signature_count_ignores_missing_key",
+        "test_signature_confidence_rises_to_high_with_real_hashes",
+        "test_redundant_loop_uses_span_end_hash_when_call_hash_empty"
+      ]
+    },
+    "R2-2": {
+      "status": "locked",
+      "why": "三份独立快照实测一致：主理人 9098 / 架构师 9809 / QA 12411 事件，redundant_loop 都是 1（常量签名状态下可解释：2 次 Bash 调用内容哈希相同）。",
+      "done": "单测锁定期望值 == 1，并加反向断言 ≤ 50：架构师实测按 (tool_name, content_sha256) 关键名字段做签名会得到 602（539 次 Bash 全同签名）——602 是签名口径失效时的特征值，出现即视为缺陷。该断言能在 T05 v2 之前拦住「签名悄悄退回代理键且没被识别」的回归",
+      "evidence": [
+        "redundant_loop_check"
+      ],
+      "tests": [
+        "test_redundant_loop_real_shape_value_locked_and_bounded"
+      ]
+    },
+    "R2-3": {
+      "status": "fixed",
+      "why": "签名口径与 confidence 规则的措辞在 docs / 结果 JSON / 代码注释三处可能漂移，验收方逐字比对，必须统一。",
+      "done": "统一措辞落在三处：docs/metrics-engine.md §7-1 引用块、本文件 signature_source.wording、metrics_core._call_signatures() 附近代码注释；本脚本自动做逐字比对（wording_consistency）",
+      "evidence": [
+        "signature_source.wording_consistency"
+      ],
+      "tests": []
+    }
+  },
+  "open_questions": [
+    {
+      "id": "OQ1",
+      "question": "通道 B 的 723 行 providerData.usage 无法在 primary_only 主源里复算——是否需要变更卡让 cost.* 走 merge 流专用通道？",
+      "owner": "主理人 / T05 v2",
+      "current_handling": "detail 写成引用式（非本次观测 + 出处），cost.* 维持 no_source"
+    },
+    {
+      "id": "OQ2",
+      "question": "`degraded_metrics`（主文件，list）与 `degraded_reasons`（ext，对象）长期双名，是否需要变更卡把 reason 收进 schema、输出收敛为单文件？",
+      "owner": "主理人 / T01 契约",
+      "current_handling": "两文件键名互斥 + 单测逐字断言（R1-3），下游按文件取键不会拿错类型"
+    },
+    {
+      "id": "OQ3",
+      "question": "`identity_violated`（tool.call 921 ≠ result 908 + error 12）是快照相关的结构性质，差 1 无解释；是否需要采集侧排查 span 只有 start 的调用？",
+      "owner": "T05 采集侧",
+      "current_handling": "只上报 data_quality_flags，指标照常出值；**禁止**为消除 flag 改计数逻辑"
+    }
+  ],
+  "r2_items_ok": {
+    "naming_check": true,
+    "key_count_check": true,
+    "drilldown": true,
+    "identity_check": true,
+    "confidence_audit": true,
+    "redundant_loop_check": true,
+    "signature_audit": true,
+    "signature_source": true
+  },
+  "gates_ok": {
+    "schema": true,
+    "privacy": true,
+    "packages_schema_untouched": true,
+    "pytest": true
+  },
+  "ok": true
+}

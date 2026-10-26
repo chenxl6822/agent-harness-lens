@@ -1,0 +1,23 @@
+# T06 单价表结构（**本轮只建结构，单价一律留 null 占位**）
+#
+# 主理人裁定 Q8：禁止编造单价——编造的单价会让 cost.cny 变成假数据，
+# 而"成本收益"是本项目的核心结论之一。
+#
+# 用法（仅结构示意，等主理人提供真实单价表后再填）：
+#   <model 名>:
+#     in:  <每输入 token 的单价，人民币>
+#     out: <每输出 token 的单价，人民币>
+#   default:            # 未命中模型时的兜底；同样留空则 cost.cny 降级
+#     in:  null
+#     out: null
+#
+# 读到空单价（null）时：cost.cny 输出 null + reason=no_source，
+# detail 写「单价表未配置」。单价单位由填表人自行声明并写进 docs/metrics-engine.md。
+
+default:
+  in: null
+  out: null
+
+# 实测 llm.response 的 payload 只有 {span_name, status, duration_ms}（701/701 无 model 字段），
+# 通道 B transcript 的 providerData 含 model 名但被 primary_only 主源策略挡在门外（T05 v2 补采）。
+# 因此本轮即使填了单价也无 model 可匹配 → 仍需 T05 v2。此处刻意留空。

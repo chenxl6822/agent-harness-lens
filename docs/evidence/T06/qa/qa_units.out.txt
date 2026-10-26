@@ -1,0 +1,74 @@
+QA T06 单元级门禁复核（独立脚本，非实现方测试）
+
+== G3 策略门禁（真实 DB，channel_policy=merge）==
+  [OK ] G3-0 入库策略: runs.channel_policy='merge'
+  [OK ] G3-1 blocked: ext.blocked=True
+  [OK ] G3-2 全部 value=null: 13 个 key 全 null=True
+  [OK ] G3-3 全 key 进 degraded_metrics: degraded 13/13
+  [OK ] G3-4 blocked_reason 非空: blocked_reason 长度 117
+  [OK ] G3-5 reason=blocked: reasons 全为 blocked=True
+
+== G7 成本前向兼容（双向）==
+  [OK ] G7-1 tokens_in 出值: tokens_in=1500.0（期望 1000+500=1500）
+  [OK ] G7-2 tokens_out 出值: tokens_out=300.0（期望 200+100=300）
+  [OK ] G7-3 tokens_total 出值: tokens_total=1800.0（1000+200 与 600 累加=1800）
+  [OK ] G7-4 cost.cny 出值: cny=4.0（手算 4.0）
+  [OK ] G7-5 无单价 → 降级: cny=None reason=no_source
+  [OK ] G7-6 真实形态 cost 全降级: tokens_total/in/out/cny 全为 null
+  [OK ] G7-7 detail 含『providerData.usage』: 命中
+  [OK ] G7-8 detail 含『T05 v2』: 命中
+  [OK ] G7-9 detail 含 trace_summary 占位事实: 命中
+  [OK ] G7-10 降级字段类型: metricset.degraded 是 list
+
+== G14 条件二路径（4 个用例）==
+  [OK ] G14-① 开关 False → null: tokens_total=None
+  [OK ] G14-② 开关 True + 请求级全 0 → 出值: tokens_total=1200.0（期望 500+700）
+  [OK ] G14-②b note 含『trace 级汇总』: note=trace 级汇总（`metric.custom`/trace_summary），非逐请求累加；2/2 条 trace_…
+  [OK ] G14-③ 非零请求级 → 只走①（防双计）: tokens_total=120.0（期望 120；若双计会是 1320）
+  [OK ] G14-④② tokens_in 恒 null: tokens_in=None
+  [OK ] G14-④② tokens_out 恒 null: tokens_out=None
+  [OK ] G14-④③ tokens_in 恒 null: tokens_in=None
+  [OK ] G14-④③ tokens_out 恒 null: tokens_out=None
+
+== G8 失败隔离 ==
+  [OK ] G8-1 探针自身降级: 探针 value=null
+  [OK ] G8-2 reason=computation_error: reason='computation_error'
+  [OK ] G8-3 其余指标数量不变: 基线 ['process.redundant_loop', 'process.retry_rate', 'process.step_count', 'process.tool_correctness'] vs 注入后 ['process.redundant_loop', 'process.retry_rate', 'process.step_count', 'process.tool_correctness']
+  [OK ] G8-4 不记 traceback（无文件路径）: detail={'reason': 'computation_error', 'detail': '单指标异常已隔离：RuntimeError（不记 traceback，避免…
+
+== G9 阈值参数化（改配置不改代码）==
+  [OK ] G9-0 两份 params_digest 不同: digest 不同
+  [OK ] G9-0b YAML 载入值正确: p5=5 p1=1 idle=99.5
+  [OK ] G9-1 loop_max_period 生效: period=5 → 2.0；period=1 → 0.0（期望 2.0 / 0.0）
+  [OK ] G9-2 low_confidence_n=3（n=6≥3） 参数确实生效（confidence 随之变化）: 实现给出 confidence=None；但 Q7/T06-09b 裁定应为 'high'（★违反裁定）
+  [OK ] G9-2 low_confidence_n=100（n=6<100） 参数确实生效（confidence 随之变化）: 实现给出 confidence='low'；但 Q7/T06-09b 裁定应为 'low'（一致）
+
+== G15 分母恒等式：真实数据只上报不失败 ==
+  实现方快照 event_count=9809
+  tool.call 921 / result 908 / error 12 → identity_holds=False
+  [OK ] G15-2a 不因恒等式不成立而失败（仍有 4 项出值）: computed_keys=['process.redundant_loop', 'process.retry_rate', 'process.step_count', 'process.tool_correctness']
+  [OK ] G15-3 data_quality_flags 追加 tool_call_identity_violated: flags=['tool_call_identity_violated']
+  [OK ] G15-3b flag 不进 degraded_metrics: flag 未污染降级清单
+
+== 边界与异常路径探测（QA 自选）==
+  [OK ] E1 空 run 不崩且全降级: degraded=13 keys=13
+  [OK ] E2 单事件 run: step_count=1.0
+  [OK ] E3 raw_ref 不出现在 note/detail: raw_ref 原文 0 命中
+  [OK ] E4 120 条证据 → 截断到 5 且 note 写明总数: note='分母：tool.call 120 次（全量调用集合）；共 120 条，此处列出前 5 条（按 seq 升序）'
+  [OK ] E5 空输入哈希不得算成同签名循环: redundant_loop=None（期望 null 而非 9）
+  [OK ] E5b redundant_loop 降级 reason=insufficient_data: reason 正确
+  [OK ] E6 非法 confidence 被拒: process.qa_bad_conf: confidence 'ultra-high' 非法
+  [OK ] E7 非法返回类型被拒: process.qa_bad_ret: 指标函数返回类型 dict 不受支持（须 MetricOutcome 或 MetricValue）
+
+== 参数语义探测：loop_min_repeat ==
+    连续 3 次：min_repeat=2 → 2，min_repeat=3 → 2
+    连续 4 次：min_repeat=2 → 3，min_repeat=3 → 3
+  [FAIL] loop_min_repeat 2→3 语义应有变化（文档称『循环节最少重复次数』）: 改 2→3 结果完全不变（2/3）：该参数当前只作用于越界剪枝 (`i + min_repeat*p > n`)，实际判定恒为『重复 2 次』，属参数名与语义不符
+
+============================================================
+{
+  "total_failures": 1,
+  "failures": [
+    "loop_min_repeat 2→3 语义应有变化（文档称『循环节最少重复次数』）: 改 2→3 结果完全不变（2/3）：该参数当前只作用于越界剪枝 (`i + min_repeat*p > n`)，实际判定恒为『重复 2 次』，属参数名与语义不符"
+  ]
+}

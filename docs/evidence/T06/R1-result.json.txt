@@ -1,0 +1,407 @@
+{
+  "card": "T06-R1",
+  "generated_at": "2026-10-26",
+  "run_id": "t06-codebuddy-primary",
+  "event_count": 9809,
+  "params_digest": "sha256:183639ba43af8de8e7ea308964687bad42acc24b91d12e362ee510572c8a6c29",
+  "canonical_sha256": "sha256:e73a790cbeb2fcef44bb3a47a2df129ae0c82efefa410769b20929c0e3c8211c",
+  "params": {
+    "loop_min_repeat": 2,
+    "loop_max_period": 5,
+    "retry_window_ms": 60000,
+    "retry_window_events": 10,
+    "low_confidence_n": 20,
+    "max_evidence_ids": 50,
+    "idle_threshold_s": 30.0,
+    "effect_window_s": 30.0,
+    "message_merge_key": "message_id",
+    "wall_clock_quantiles": [
+      0.5,
+      0.95
+    ],
+    "tokens_trace_summary_fallback": false,
+    "pricing": {}
+  },
+  "how_to_reproduce": ".venv/Scripts/python.exe scripts/t06_r1_check.py --metrics runs/t06/metrics --db runs/t06/t06.db --run-id t06-codebuddy-primary --out probe/t06/R1-result.json",
+  "naming_check": {
+    "main_degraded_metrics_is_list_of_str": true,
+    "main_degraded_metrics_n": 9,
+    "ext_degraded_reasons_is_mapping_with_reason_detail": true,
+    "ext_degraded_reasons_n": 9,
+    "ext_has_degraded_metrics_key": false,
+    "main_has_degraded_reasons_key": false,
+    "same_key_set": true,
+    "ok": true
+  },
+  "key_count_check": {
+    "total": 13,
+    "computed": 4,
+    "degraded": 9,
+    "consistent": true,
+    "expected_total": 13,
+    "expected_computed": 4,
+    "expected_degraded": 9,
+    "computed_matches_expected": true,
+    "degraded_matches_expected": true,
+    "computed_keys": [
+      "process.redundant_loop",
+      "process.retry_rate",
+      "process.step_count",
+      "process.tool_correctness"
+    ],
+    "degraded_keys": [
+      "cost.cny",
+      "cost.tokens_in",
+      "cost.tokens_out",
+      "cost.tokens_total",
+      "cost.wall_clock_p50",
+      "cost.wall_clock_p95",
+      "process.trajectory_efficiency",
+      "result.pass_k",
+      "result.success"
+    ],
+    "ext_key_count_check": {
+      "total": 13,
+      "computed": 4,
+      "degraded": 9,
+      "consistent": true,
+      "expected_total": 13,
+      "expected_computed": 4,
+      "expected_degraded": 9,
+      "computed_matches_expected": true,
+      "degraded_matches_expected": true,
+      "missing_keys": [],
+      "extension_keys": [],
+      "computed_keys": [
+        "process.redundant_loop",
+        "process.retry_rate",
+        "process.step_count",
+        "process.tool_correctness"
+      ],
+      "degraded_keys": [
+        "cost.cny",
+        "cost.tokens_in",
+        "cost.tokens_out",
+        "cost.tokens_total",
+        "cost.wall_clock_p50",
+        "cost.wall_clock_p95",
+        "process.trajectory_efficiency",
+        "result.pass_k",
+        "result.success"
+      ]
+    },
+    "ok": true
+  },
+  "drilldown": {
+    "event_ids_total": 117,
+    "event_ids_resolved_in_db": 117,
+    "unresolved": [],
+    "hit_rate": 1.0,
+    "per_key": {
+      "process.redundant_loop": 1,
+      "process.retry_rate": 4,
+      "process.step_count": 50,
+      "process.tool_correctness": 62
+    },
+    "ext_evidence_index_ids": 117,
+    "ext_evidence_index_unresolved": [],
+    "event_id_unique_needs_run_id": true,
+    "ok": true
+  },
+  "confidence_audit": {
+    "rule": "n ≥ low_confidence_n(20) → high；n < 20 → low；派生/上界口径恒 low；降级一律 null（禁止给 no_source 填 low）",
+    "by_key": {
+      "cost.cny": {
+        "value": null,
+        "confidence": null,
+        "expected": null,
+        "sample_n": null,
+        "derived": false
+      },
+      "cost.tokens_in": {
+        "value": null,
+        "confidence": null,
+        "expected": null,
+        "sample_n": null,
+        "derived": false
+      },
+      "cost.tokens_out": {
+        "value": null,
+        "confidence": null,
+        "expected": null,
+        "sample_n": null,
+        "derived": false
+      },
+      "cost.tokens_total": {
+        "value": null,
+        "confidence": null,
+        "expected": null,
+        "sample_n": null,
+        "derived": false
+      },
+      "cost.wall_clock_p50": {
+        "value": null,
+        "confidence": null,
+        "expected": null,
+        "sample_n": null,
+        "derived": false
+      },
+      "cost.wall_clock_p95": {
+        "value": null,
+        "confidence": null,
+        "expected": null,
+        "sample_n": null,
+        "derived": false
+      },
+      "process.redundant_loop": {
+        "value": 1.0,
+        "confidence": "high",
+        "expected": "high",
+        "sample_n": 921,
+        "derived": false
+      },
+      "process.retry_rate": {
+        "value": 0.002172,
+        "confidence": "high",
+        "expected": "high",
+        "sample_n": 921,
+        "derived": false
+      },
+      "process.step_count": {
+        "value": 2567.0,
+        "confidence": "high",
+        "expected": "high",
+        "sample_n": 2567,
+        "derived": false
+      },
+      "process.tool_correctness": {
+        "value": 0.986971,
+        "confidence": "low",
+        "expected": "low",
+        "sample_n": 921,
+        "derived": true
+      },
+      "process.trajectory_efficiency": {
+        "value": null,
+        "confidence": null,
+        "expected": null,
+        "sample_n": null,
+        "derived": false
+      },
+      "result.pass_k": {
+        "value": null,
+        "confidence": null,
+        "expected": null,
+        "sample_n": null,
+        "derived": false
+      },
+      "result.success": {
+        "value": null,
+        "confidence": null,
+        "expected": null,
+        "sample_n": null,
+        "derived": false
+      }
+    },
+    "valued_without_confidence": [],
+    "degraded_with_confidence": [],
+    "mismatched_vs_q7": [],
+    "ok": true
+  },
+  "identity_check": {
+    "identity_holds": false,
+    "tool_call": 921,
+    "tool_result": 908,
+    "tool_error": 12,
+    "event_count": 9809,
+    "snapshot_digest": "sha256:1817fe29e29b37d4",
+    "missing_fields": [],
+    "flag_reported": true,
+    "reported_not_failed": true,
+    "data_quality_flags": [
+      "tool_call_identity_violated",
+      "tool_call_signature_degenerate"
+    ],
+    "ok": true
+  },
+  "signature_audit": {
+    "tool.call": {
+      "n": 921,
+      "distinct": 1,
+      "all_same": true,
+      "distinct_ratio": 0.001086
+    },
+    "span_end": {
+      "n": 920,
+      "distinct": 869,
+      "all_same": false,
+      "distinct_ratio": 0.944565
+    },
+    "usable_as_signature": {
+      "tool.call": false,
+      "span_end": true
+    },
+    "ok": true
+  },
+  "gates": {
+    "schema": {
+      "errors": 0,
+      "first_errors": [],
+      "ok": true
+    },
+    "privacy": {
+      "windows_user_paths": 0,
+      "posix_home_paths": 0,
+      "raw_ref_hits": 0,
+      "home_dir_hits": 0,
+      "raw_ref_rows_in_db": 9809,
+      "ok": true
+    },
+    "packages_schema_untouched": {
+      "git_diff": "",
+      "git_status": "",
+      "ok": true
+    },
+    "pytest": {
+      "exit": 0,
+      "summary": "84 passed in 1.74s",
+      "ok": true
+    }
+  },
+  "decisions": {
+    "R1-6_signature": {
+      "verdict": "a",
+      "ruling": "认 span_id 从 span_end 补齐的内容哈希为正式签名口径（tool.call 自身的 content_sha256 全为 sha256(\"\")，无区分度，不得用作签名）",
+      "semantics": "取的是「结果内容哈希」，不是「入参哈希」：相同入参不同输出会漏检冗余；不同入参相同输出（如都失败返回同一错误）会误判冗余。它是当前通道 A 数据下唯一可用的近似，指标 note 已声明来源。",
+      "revisit": "T05 v2 在采集侧补到真入参哈希后，本近似自动失效（指标代码零改动）"
+    },
+    "R1-5_confidence_band": {
+      "ruling": "按 Q7：n ≥ low_confidence_n(20) → high；n < 20 → low；派生/上界口径恒 low；降级一律 null。retry_rate / redundant_loop 记 high（与主理人裁定一致），tool_correctness 因 deny 信号无源、值为上界 → low。"
+    },
+    "R1-2_key_count_assert": {
+      "ruling": "代码常量锁「实现能吐哪些 key」（注册即校验，多吐/少吐都报错）+ 装配层断言 key 不缺；**不**硬断言本次一定 4 可算，否则 G7 前向兼容（通道 A 补到 usage 后 cost.* 出值）会被自己的断言打死。数据侧漂移在 key_count_check.computed_matches_expected 里如实上报为 false。"
+    }
+  },
+  "r1_items": {
+    "R1-1": {
+      "status": "hardened",
+      "why": "原判「step_count 分子分母倒置」在当前产物上未复现（step_count 2567 == count(step.start) 2567）",
+      "done": "口径锁定为唯一来源 type=='step.start' 事件；dsh `pre-step` 的 turn/step 交叉校验（不一致以事件计数为准，差异写 note）；两条防回归单测",
+      "evidence": [
+        "key_count_check.computed_keys",
+        "gates.pytest"
+      ],
+      "tests": [
+        "test_step_count_uses_step_start_events",
+        "test_step_count_crosscheck_with_pre_step"
+      ]
+    },
+    "R1-2": {
+      "status": "locked",
+      "why": "13 = 4 可算 + 9 降级本来已自洽，转防回归锁定",
+      "done": "EXPECTED_COMPUTED_KEYS / EXPECTED_DEGRADED_KEYS 常量 + 注册器双向校验 + 装配层缺 key 断言；ext.key_count_check 如实上报本次条数",
+      "evidence": [
+        "key_count_check"
+      ],
+      "tests": [
+        "test_key_count_is_self_consistent",
+        "test_key_count_reports_data_drift_without_failing"
+      ]
+    },
+    "R1-3": {
+      "status": "fixed",
+      "why": "ext 同时存在 degraded_metrics（对象）与主文件 degraded_metrics（list[str]），同名不同构",
+      "done": "ext 只保留 degraded_reasons（对象）；主文件保持 list[str]；四向逐字断言",
+      "evidence": [
+        "naming_check"
+      ],
+      "tests": [
+        "test_degraded_keys_naming_is_disjoint_between_files"
+      ]
+    },
+    "R1-4": {
+      "status": "retested",
+      "why": "可下钻性与恒等式「只上报不失败」本已正确，仅复测并补快照标识",
+      "done": "逐条 event_id 回查库；tool_call_identity 补 event_count + snapshot_digest；identity_holds=false 时仍退出码 0",
+      "evidence": [
+        "drilldown",
+        "identity_check"
+      ],
+      "tests": [
+        "test_every_non_null_metric_has_resolvable_evidence",
+        "test_tool_call_identity_flag_reported_without_touching_value"
+      ]
+    },
+    "R1-5": {
+      "status": "fixed",
+      "why": "4 个可算指标 confidence 全为 None（违反 Q7）",
+      "done": "n≥20 → high、n<20 → low、派生/上界恒 low、降级 null；反向断言进装配层（value!=null 且 confidence==null 直接抛 MetricAssemblyError）",
+      "evidence": [
+        "confidence_audit"
+      ],
+      "tests": [
+        "test_every_valued_metric_has_confidence",
+        "test_params_change_low_confidence_n_takes_effect"
+      ]
+    },
+    "R1-6": {
+      "status": "fixed",
+      "why": "note / degraded_reasons[].detail 里写死了另一份快照的实测数字（llm.response 命中 0/9098、通道 B 723 行、metric.custom 33/33 全 0）",
+      "done": "本 run 能算的现场算（llm.response 条数/usage 命中、trace_summary 条数/>0 条数、扫描事件数、deny 命中、tool.call 自身空哈希条数）；算不到的改成「引用（非本 run 观测）+ 出处」；签名口径定案 (a) + 退化 flag",
+      "evidence": [
+        "signature_audit",
+        "degraded detail 见 runs/t06/metrics/metricset.ext.json"
+      ],
+      "tests": [
+        "test_degraded_detail_is_this_run_not_hardcoded_snapshot",
+        "test_tokens_metrics_no_source_current_real_shape"
+      ]
+    },
+    "R1-7": {
+      "status": "fixed",
+      "why": "loop_min_repeat 从 2 改 3 结果不变（只比较了 1 个周期 = 半死参数）",
+      "done": "比较 (min_repeat-1)×p 个位置，真正要求 min_repeat 轮连续重复；note 写明生效轮数",
+      "evidence": [
+        "gates.pytest"
+      ],
+      "tests": [
+        "test_params_change_loop_min_repeat_takes_effect"
+      ]
+    }
+  },
+  "open_questions": [
+    {
+      "id": "OQ1",
+      "question": "通道 B 的 723 行 providerData.usage 无法在 primary_only 主源里复算——是否需要变更卡让 cost.* 走 merge 流专用通道？",
+      "owner": "主理人 / T05 v2",
+      "current_handling": "detail 写成引用式（非本次观测 + 出处），cost.* 维持 no_source"
+    },
+    {
+      "id": "OQ2",
+      "question": "`degraded_metrics`（主文件，list）与 `degraded_reasons`（ext，对象）长期双名，是否需要变更卡把 reason 收进 schema、输出收敛为单文件？",
+      "owner": "主理人 / T01 契约",
+      "current_handling": "两文件键名互斥 + 单测逐字断言（R1-3），下游按文件取键不会拿错类型"
+    },
+    {
+      "id": "OQ3",
+      "question": "`identity_violated`（tool.call 921 ≠ result 908 + error 12）是快照相关的结构性质，差 1 无解释；是否需要采集侧排查 span 只有 start 的调用？",
+      "owner": "T05 采集侧",
+      "current_handling": "只上报 data_quality_flags，指标照常出值；**禁止**为消除 flag 改计数逻辑"
+    }
+  ],
+  "r1_items_ok": {
+    "naming_check": true,
+    "key_count_check": true,
+    "drilldown": true,
+    "identity_check": true,
+    "confidence_audit": true,
+    "signature_audit": true
+  },
+  "gates_ok": {
+    "schema": true,
+    "privacy": true,
+    "packages_schema_untouched": true,
+    "pytest": true
+  },
+  "ok": true
+}

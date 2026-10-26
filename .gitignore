@@ -17,3 +17,8 @@ probe/
 *.tmp
 .lic.tmp
 *.egg-info/
+
+# T06 自检临时目录（pytest basetemp / 门禁脚本输出）
+.tmp-pytest/
+.tmp-*/
+.tmp-t06/

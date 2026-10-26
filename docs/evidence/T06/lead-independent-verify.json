@@ -1,0 +1,119 @@
+{
+  "confidence_counterfactual": {
+    "native_distinct": {
+      "n": 25,
+      "distinct": 25,
+      "proxy": 0,
+      "native": 25,
+      "confidence": "high",
+      "note": "签名来源=原生（content_sha256 去重取值数 > 1 且无 span_end 回退，n=25）",
+      "expect": "high"
+    },
+    "proxy_all_empty": {
+      "n": 25,
+      "distinct": 1,
+      "proxy": 0,
+      "native": 0,
+      "confidence": "low",
+      "note": "签名来源=代理（content_sha256 本 run 去重取值数 == 1，无区分度——当前实测 921/921 全",
+      "expect": "low"
+    },
+    "key_missing": {
+      "n": 25,
+      "distinct": 0,
+      "proxy": 0,
+      "native": 0,
+      "confidence": "low",
+      "note": "签名来源未采集（本 run tool.call 无 content_sha256 取值，不得据此判为代理；签名由 span_end 补齐，本身是近似）",
+      "expect": "low",
+      "judged_as_proxy": false,
+      "says_unobserved": true
+    },
+    "mixed": {
+      "n": 25,
+      "distinct": 13,
+      "proxy": 13,
+      "native": 12,
+      "confidence": "low",
+      "note": "签名来源=混合（13 次调用经 span_id 从 span_end 补齐，非纯原生，不按原生计档）",
+      "expect": "low"
+    }
+  },
+  "loop_counterfactual": {
+    "real_value": 0.0,
+    "collapsed_value": 119.0,
+    "collapsed_note": "签名来源=代理（content_sha256 本 run 去重取值数 == 1，无区分度——当前实测 921/921 全为 sha256(\"\") 常量，调用签名实为 span_id 这类代理键，样本量不改变这一点）；签名来源：`(tool_"
+  },
+  "live": {
+    "count": 13,
+    "degraded_n": 9,
+    "invariant_violations": [],
+    "signature_metrics": {
+      "process.retry_rate": {
+        "value": 0.002172,
+        "confidence": "low",
+        "note_has_proxy": true,
+        "note_has_span_end_result_hash": true,
+        "note": "分母=tool.call 921 次；error 事件 12 个：matched 2 / unmatched 10（其中无任何签名键 0）；签名优先级 content_sha256 > call_id > span_id；签名来源=代理（c"
+      },
+      "process.redundant_loop": {
+        "value": 1.0,
+        "confidence": "low",
+        "note_has_proxy": true,
+        "note_has_span_end_result_hash": true,
+        "note": "签名来源=代理（content_sha256 本 run 去重取值数 == 1，无区分度——当前实测 921/921 全为 sha256(\"\") 常量，调用签名实为 span_id 这类代理键，样本量不改变这一点）；签名来源：`(tool_"
+      }
+    },
+    "ext_keys": [
+      "blocked",
+      "blocked_reason",
+      "canonical_sha256",
+      "channel_policy",
+      "computed_keys",
+      "data_quality_details",
+      "data_quality_flags",
+      "degraded_reasons",
+      "elapsed_ms",
+      "engine_version",
+      "event_count",
+      "evidence_index",
+      "key_count_check",
+      "notes",
+      "params_digest",
+      "run_id",
+      "tool_call_identity"
+    ],
+    "canonical_sha256_reported": "sha256:1f40b822c4c88c7cb697843efb2d5a53a6a3eac4f993e3b678800c68a38a3b04",
+    "data_quality_flags": [
+      "tool_call_identity_violated",
+      "tool_call_signature_degenerate"
+    ],
+    "channel_policy": "primary_only"
+  },
+  "wording": {
+    "code_constant": "签名来源：`(tool_name, content_sha256)`，content_sha256 取自 span_id 对齐的 span_end **结果内容哈希**（入参 `toolInput` 未采集，非 args_hash 的真实语义）",
+    "code_constant_tokens": {
+      "span_id": true,
+      "span_end": true,
+      "结果内容哈希": true
+    },
+    "docs_has_span_id_span_end_result_hash": true,
+    "docs_occurrences": {
+      "span_id": 12,
+      "span_end": 8,
+      "结果内容哈希": 4
+    },
+    "anchors": [
+      "docs_5_6",
+      "docs_5_7",
+      "code_constant"
+    ]
+  },
+  "verdict": {
+    "confidence_is_dynamic": true,
+    "loop_bound_is_meaningful": true,
+    "live_signature_metrics_low_with_reason": true,
+    "wording_consistent": true,
+    "all_ok": true
+  }
+}

@@ -120,6 +120,136 @@ function arg(name, dflt = null) {
 }
 const has = (name) => process.argv.includes(`--${name}`);
 
+// ---------------------------------------------------------------- backfill
+// --backfill <runTag>：**事后重建**一条缺失的台账行。
+// 用途：包装进程被外部信号掐断时（本次 T06-R2 就是），子进程可能已经跑完并改了仓库，
+// 但台账没写成——"任务交给了 CodeBuddy"这件事就失去了机器证据。
+//
+// 与 --recheck 的区别：recheck 只能改写**已存在**的行，补不出缺失的行。
+// 与手写的区别：本模式仍走同一套取证逻辑（会话文件里比对提示词原文），且
+//   `backfilled: true` + `exitCode: null` + `verdict.succeeded: null`，
+//   不假装知道退出码——退出码本来就断了，编一个出来等于伪造证据。
+{
+  const i = process.argv.indexOf('--backfill');
+  if (i !== -1 && process.argv[i + 1]) {
+    backfill(process.argv[i + 1]);
+    process.exit(0);
+  }
+}
+
+function backfill(tag) {
+  const dir = path.join(RUNS, tag);
+  const promptPath = path.join(dir, 'prompt.txt');
+  if (!fs.existsSync(promptPath)) {
+    console.error(`找不到 ${promptPath}`);
+    process.exit(2);
+  }
+  const text = fs.readFileSync(promptPath, 'utf8');
+  const m = tag.match(/(\d{4})-(\d{2})-(\d{2})T(\d{2})-(\d{2})-(\d{2})-(\d{3})Z$/);
+  if (!m) {
+    console.error('无法从 runTag 解析起始时间');
+    process.exit(2);
+  }
+  const startedAt = `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}.${m[7]}Z`;
+  const task = tag.slice(0, tag.length - m[0].length).replace(/-$/, '');  // 去掉分隔用的尾部连字符
+  const sinceMs = Date.parse(startedAt);
+
+  if (fs.existsSync(LEDGER)) {
+    const dup = fs
+      .readFileSync(LEDGER, 'utf8')
+      .split(/\r?\n/)
+      .filter(Boolean)
+      .some((l) => {
+        try {
+          return JSON.parse(l).runTag === tag;
+        } catch {
+          return false;
+        }
+      });
+    if (dup) {
+      console.error(`台账里已有 ${tag}，拒绝重复补录`);
+      process.exit(2);
+    }
+  }
+
+  const arts = codebuddyArtifacts(sinceMs);
+  let ev = null;
+  const sorted = arts.sessions.sort((a, b) => b.size - a.size);
+  // 同一份提示词可能被派过多次（本次 T06-R2 就是），按大小取会认错会话。
+  // 补录时以「会话首行时间戳最接近派单起始时刻」为准——即谁先开场谁是这一跑。
+  const firstTs = (p) => {
+    try {
+      for (const line of fs.readFileSync(p, 'utf8').split(/\r?\n/)) {
+        if (!line.trim()) continue;
+        const t = JSON.parse(line).timestamp;
+        if (Number.isFinite(t)) return t;
+      }
+    } catch {}
+    return Infinity;
+  };
+  const matchedList = [];
+  for (const s of sorted) {
+    const v = verifyPromptInSession(s.path, text);
+    if (v.matched) matchedList.push({ s, v });
+  }
+  matchedList.sort((a, b) => Math.abs(firstTs(a.s.path) - sinceMs) - Math.abs(firstTs(b.s.path) - sinceMs));
+  if (matchedList.length) {
+    const { s, v } = matchedList[0];
+    ev = {
+      sessionId: path.basename(s.path, '.jsonl'),
+      file: s.path,
+      bytes: s.size,
+      ...v,
+      pickedAmong: matchedList.length,
+      pickRule: '同一提示词命中多个会话时，取首行时间戳最接近派单起始时刻的那个',
+    };
+  }
+  if (!ev) {
+    console.error(`[backfill] ${tag}：时间窗内 ${sorted.length} 个会话，无一命中提示词原文 → 不补录（补了就是伪造）`);
+    console.error(`  候选：${sorted.map((s) => path.basename(s.path)).join(', ') || '无'}`);
+    process.exit(3);
+  }
+
+  const git = (a) => (spawnSync('git', a, { cwd: REPO, encoding: 'utf8', windowsHide: true }).stdout ?? '').trim();
+  const record = {
+    schema: 'dispatch-ledger/1',
+    task,
+    runTag: tag,
+    startedAt,
+    endedAt: null,
+    durationSec: null,
+    exitCode: null,
+    interrupted: 'unknown',
+    workdir: REPO,
+    prompt: { chars: text.length, sha256: crypto.createHash('sha256').update(text).digest('hex'), file: promptPath },
+    evidence: {
+      codebuddySession: ev,
+      codebuddyTraces: arts.traces.sort((a, b) => b.size - a.size).slice(0, 3),
+      windowsAppeared: [],
+      git: {
+        headAtBackfill: git(['rev-parse', 'HEAD']),
+        changedFiles: git(['status', '--porcelain']).split(/\r?\n/).filter(Boolean),
+        postHoc: true,
+        note: '补录时为事后快照，不是该次派单结束瞬间的状态',
+      },
+    },
+    verdict: {
+      dispatchedToCodeBuddy: true,
+      producedChanges: null,
+      succeeded: null,
+      note: '退出码与耗时随包装进程一起丢失，不推测',
+    },
+    backfilled: true,
+    backfilledAt: new Date().toISOString(),
+    backfillReason: '包装进程被前台超时 SIGTERM 掐断，post-flight 未执行；由 --backfill 重建，会话侧证据齐全',
+  };
+  fs.appendFileSync(LEDGER, JSON.stringify(record) + '\n', 'utf8');
+  console.log(`[backfill] 已补录 ${tag}`);
+  console.log(`  会话        ${ev.sessionId}（${ev.bytes} 字节）`);
+  console.log(`  提示词命中  ${ev.matched ? '是' : '否'}   指纹 ${ev.fingerprint}`);
+  console.log('  exitCode    null（不推测）');
+}
+
 const task = arg('task');
 if (!task || task === true) {
   console.error('缺少 --task <任务编号>');
@@ -290,6 +420,22 @@ const child = spawn(process.execPath, args, {
 child.stdout.pipe(out);
 child.stderr.pipe(err);
 
+// 包装进程被外部信号掐断时（前台超时、终端关闭），旧版会直接死掉，post-flight 跑不到，
+// 台账就少一行——T06-R2 第一跑正是如此，事后只能靠 --backfill 重建。
+// 现在收到信号先杀子进程，然后**照常走完取证与落盘**，记录带 interrupted 标记。
+// 台账完整性优先于退出速度：少一行台账 = 少一份"任务确实交给了 CodeBuddy"的机器证据。
+let interruptedBy = null;
+for (const sig of ['SIGTERM', 'SIGINT', 'SIGHUP']) {
+  process.on(sig, () => {
+    if (interruptedBy) return;
+    interruptedBy = sig;
+    console.error(`[dispatch] 收到 ${sig}：终止子进程，继续完成取证并写台账`);
+    try {
+      child.kill();
+    } catch {}
+  });
+}
+
 // 执行期间的进程/窗口采样：任何弹出的窗口都会在这里留下名字和标题
 const seen = new Set(win0.keys());
 const appeared = new Map();
@@ -373,6 +519,7 @@ const record = {
   endedAt,
   durationSec: Math.round((endMs - startMs) / 1000),
   exitCode,
+  interrupted: interruptedBy || false,
   workdir,
   executor: cbcRun,
   skipPermissions: skipPerms,
@@ -393,7 +540,7 @@ const record = {
   verdict: {
     dispatchedToCodeBuddy: Boolean(sessionEvidence?.matched),
     producedChanges: changed.length > 0 || headBefore !== headAfter,
-    succeeded: exitCode === 0,
+    succeeded: exitCode === 0 && !interruptedBy,
   },
 };
 
@@ -447,4 +594,4 @@ console.log(`台账已追加：${LEDGER}`);
 console.log(`本次记录：${path.join(runDir, 'record.md')}`);
 console.log('─'.repeat(64));
 
-process.exit(exitCode === 0 ? 0 : 1);
+process.exit(exitCode === 0 && !interruptedBy ? 0 : 1);

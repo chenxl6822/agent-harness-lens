@@ -1,0 +1,93 @@
+QA 补验：T06-R1 返工单对照
+
+### QA 自摄快照：run_id=qa-t06-primary
+
+== R1-1 step_count 口径锁定 ==
+    库内 step.start=3352 step.end=3351 session.start=36；产物=3352.0
+  [OK ] R1-1 step_count == count(step.start): 3352.0 == 3352
+  [OK ] R1-1b 未被 session.start 误用: session.start=36（若相等说明口径被污染）
+  [OK ] R1-1c note 写明不读 payload: note=`step.start` 计数（不读 payload）；事件计数 3352；本 run 无 dsh `agent/pre-step` 形态（step.start…
+
+== R1-2 降级清单口径自洽 ==
+    总 key 13；可算 4；降级 9
+  [OK ] R1-2 key 总数 == 13: 实际 13
+  [OK ] R1-2 可算 == 4: ['process.redundant_loop', 'process.retry_rate', 'process.step_count', 'process.tool_correctness']
+  [OK ] R1-2 降级 == 9: ['cost.cny', 'cost.tokens_in', 'cost.tokens_out', 'cost.tokens_total', 'cost.wall_clock_p50', 'cost.wall_clock_p95', 'process.trajectory_efficiency', 'result.pass_k', 'result.success']
+  [OK ] R1-2 degraded_metrics 条数 == null 指标数: 9 vs 9
+  [OK ] R1-2b 无 turn_count 幽灵键: 零命中
+  [OK ] R1-2c 三合一不变量：null ⟺ 进降级清单 ⟺ evidence==[]: 13/13 满足
+  [OK ] R1-2d 降级清单与原因字典 key 集合一致: 9 vs 9
+
+== R1-3 双文件键名逐字检查 ==
+  [OK ] 主文件 degraded_metrics 是 list[str]: type=list
+  [OK ] 主文件不得出现 degraded_reasons: 零命中
+  [OK ] ext.degraded_reasons 是 dict 且含 reason/detail: type=dict n=9
+  [OK ] ★ ext 不得再出现 degraded_metrics（R1-3 当前未满足）: ext 键 = ['blocked', 'blocked_reason', 'canonical_sha256', 'channel_policy', 'computed_keys', 'data_quality_details', 'data_quality_flags', 'degraded_reasons', 'elapsed_ms', 'engine_version', 'event_count', 'evidence_index', 'key_count_check', 'notes', 'params_digest', 'run_id', 'tool_call_identity']；存在映射型 degraded_metrics → 判 FAIL
+
+== R1-5 confidence 反向断言 ==
+  [OK ] ★ R1-5 反向断言：0 命中 value!=null && confidence==null: 违规 0 项
+  [OK ] R1-5 process.step_count: 应 'high' / 实测 'high'
+  [OK ] R1-5 process.retry_rate: 应 'high' / 实测 'high'
+  [OK ] R1-5 process.redundant_loop: 应 'high' / 实测 'high'
+  [OK ] R1-5 process.tool_correctness: 应 'low' / 实测 'low'
+
+== R1-6 签名来源计数（native 不得用 total - empty_own 反推）==
+    A 键缺失(代理) / B 空常量(代理) / C 真哈希(原生)
+    joined(补齐)=2  empty_own=1  可用签名=3/3
+    正确 native = 1（期望 1：只有 C）
+    朴素 native = total - empty_own = 2（期望 1 才是巧合）
+  [OK ] R1-6a 正确算法 native == 1: 实测 1
+  [OK ] R1-6b 朴素算法在本用例上确实算错（证明不是理论问题）: 朴素=2 vs 正确=1（键缺失那条被误判为原生）
+  [OK ] R1-6c proxy = 可用签名 - native: 实测 proxy=2（期望 2）
+  [OK ] R1-6d 判定须用正向条件 proxy==0（本用例 proxy>0 ⇒ 恒 low）: proxy=2 > 0 ⇒ confidence 应为 low
+    【当前 QA 快照】tool.call 1124 条：有键 1124 / 键缺失 0 / 空常量 1124 / 原生 0
+  [OK ] R1-6e 当前快照键缺失为 0（故两算法等价，bug 潜伏）: missing=0 native=0 → empty_own+native==total 碰巧成立，实跑无法暴露，必须靠单测
+
+### 实现方快照：run_id=t06-codebuddy-primary
+
+== R1-1 step_count 口径锁定 ==
+    库内 step.start=2567 step.end=2567 session.start=35；产物=2567.0
+  [OK ] R1-1 step_count == count(step.start): 2567.0 == 2567
+  [OK ] R1-1b 未被 session.start 误用: session.start=35（若相等说明口径被污染）
+  [OK ] R1-1c note 写明不读 payload: note=`step.start` 计数（不读 payload）；事件计数 2567；本 run 无 dsh `agent/pre-step` 形态（step.start…
+
+== R1-2 降级清单口径自洽 ==
+    总 key 13；可算 4；降级 9
+  [OK ] R1-2 key 总数 == 13: 实际 13
+  [OK ] R1-2 可算 == 4: ['process.redundant_loop', 'process.retry_rate', 'process.step_count', 'process.tool_correctness']
+  [OK ] R1-2 降级 == 9: ['cost.cny', 'cost.tokens_in', 'cost.tokens_out', 'cost.tokens_total', 'cost.wall_clock_p50', 'cost.wall_clock_p95', 'process.trajectory_efficiency', 'result.pass_k', 'result.success']
+  [OK ] R1-2 degraded_metrics 条数 == null 指标数: 9 vs 9
+  [OK ] R1-2b 无 turn_count 幽灵键: 零命中
+  [OK ] R1-2c 三合一不变量：null ⟺ 进降级清单 ⟺ evidence==[]: 13/13 满足
+  [OK ] R1-2d 降级清单与原因字典 key 集合一致: 9 vs 9
+
+== R1-3 双文件键名逐字检查 ==
+  [OK ] 主文件 degraded_metrics 是 list[str]: type=list
+  [OK ] 主文件不得出现 degraded_reasons: 零命中
+  [OK ] ext.degraded_reasons 是 dict 且含 reason/detail: type=dict n=9
+  [OK ] ★ ext 不得再出现 degraded_metrics（R1-3 当前未满足）: ext 键 = ['blocked', 'blocked_reason', 'canonical_sha256', 'channel_policy', 'computed_keys', 'data_quality_details', 'data_quality_flags', 'degraded_reasons', 'elapsed_ms', 'engine_version', 'event_count', 'evidence_index', 'key_count_check', 'notes', 'params_digest', 'run_id', 'tool_call_identity']；存在映射型 degraded_metrics → 判 FAIL
+
+== R1-5 confidence 反向断言 ==
+  [OK ] ★ R1-5 反向断言：0 命中 value!=null && confidence==null: 违规 0 项
+  [OK ] R1-5 process.step_count: 应 'high' / 实测 'high'
+  [OK ] R1-5 process.retry_rate: 应 'high' / 实测 'high'
+  [OK ] R1-5 process.redundant_loop: 应 'high' / 实测 'high'
+  [OK ] R1-5 process.tool_correctness: 应 'low' / 实测 'low'
+
+== R1-6 签名来源计数（native 不得用 total - empty_own 反推）==
+    A 键缺失(代理) / B 空常量(代理) / C 真哈希(原生)
+    joined(补齐)=2  empty_own=1  可用签名=3/3
+    正确 native = 1（期望 1：只有 C）
+    朴素 native = total - empty_own = 2（期望 1 才是巧合）
+  [OK ] R1-6a 正确算法 native == 1: 实测 1
+  [OK ] R1-6b 朴素算法在本用例上确实算错（证明不是理论问题）: 朴素=2 vs 正确=1（键缺失那条被误判为原生）
+  [OK ] R1-6c proxy = 可用签名 - native: 实测 proxy=2（期望 2）
+  [OK ] R1-6d 判定须用正向条件 proxy==0（本用例 proxy>0 ⇒ 恒 low）: proxy=2 > 0 ⇒ confidence 应为 low
+    【当前 QA 快照】tool.call 1124 条：有键 1124 / 键缺失 0 / 空常量 1124 / 原生 0
+  [OK ] R1-6e 当前快照键缺失为 0（故两算法等价，bug 潜伏）: missing=0 native=0 → empty_own+native==total 碰巧成立，实跑无法暴露，必须靠单测
+
+============================================================
+{
+  "total_failures": 0,
+  "failures": []
+}

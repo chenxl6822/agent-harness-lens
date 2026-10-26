@@ -1,0 +1,34 @@
+# T06 指标阈值配置（可覆盖；文件缺失时走 engine/hs_core/metrics.py::MetricParams 的代码默认值）
+#
+# 键必须与 MetricParams 字段一一对应：未知键会**直接报错**（T06-09：改配置即生效，
+# 但拼写错误不允许静默失效——那会让人误以为改了阈值其实没生效）。
+# 单价表不在本文件，见 engine/config/pricing.yaml。
+
+# 循环节检测
+loop_min_repeat: 2          # 判定为循环所需的最少**连续重复轮数**（R1-7：已真正参与判定，改 3 即要求 3 轮）
+loop_max_period: 5          # 循环节长度上限（PRD 默认 5）
+
+# 重试判定窗口
+retry_window_ms: 60000      # 命中同一签名的最大时间差（毫秒）
+retry_window_events: 10     # ts 不可解析时退化的 seq 距离窗口
+
+# 置信度与证据
+# Q7（R1-5）：直接观测 n ≥ low_confidence_n → high；n < → low；派生/上界口径恒 low；降级一律 null。
+low_confidence_n: 20        # 样本量阈值（对齐 HS-3003）；只影响直接观测类指标，派生口径不受它影响
+max_evidence_ids: 50        # 单条 EvidenceRef 的 event_id 上限（按 seq 升序截断）
+
+# [T07 预留] 协作指标阈值，T06 只做参数化，不实现指标
+idle_threshold_s: 30.0
+effect_window_s: 30.0
+
+# message.recv stale 变体二次归并键（T06-11）
+message_merge_key: message_id
+
+# 跨 run 墙钟分位数
+wall_clock_quantiles: [0.50, 0.95]
+
+# cost.tokens_total 的条件二路径（metric.custom/trace_summary 的 trace 级 total_tokens）
+# 默认 false：引用主理人 9098 事件快照实测——33/33 条 total_tokens 全为 0（占位字段未实现）
+# → 维持 no_source。保留开关是为了将来通道 A 产出非零值时可零改动启用；
+# 两路径互斥防双计（有非零请求级 usage 时只用请求级）。
+tokens_trace_summary_fallback: false

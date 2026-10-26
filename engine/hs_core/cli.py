@@ -1,6 +1,6 @@
-"""hs CLI。本卡（T05b）增补 ingest / db verify；现有 version / schema 不变。
+"""hs CLI。T05b 增补 ingest / db verify；T06 增补 metrics run / metrics list。
 
-退出码约定（T05b 任务卡 §3 E4）：成功 0；schema/策略违规 2；IO 错误 1。
+退出码约定：成功 0；schema/策略/装配违规 2；IO 错误 1。
 """
 
 from __future__ import annotations
@@ -25,6 +25,10 @@ schema_app = typer.Typer(help="schema 契约相关子命令", no_args_is_help=Tr
 app.add_typer(schema_app, name="schema")
 db_app = typer.Typer(help="SQLite 存储层子命令（T05b）", no_args_is_help=True)
 app.add_typer(db_app, name="db")
+metrics_app = typer.Typer(help="指标计算子命令（T06）", no_args_is_help=True)
+app.add_typer(metrics_app, name="metrics")
+
+CONFIG_DIR = Path(__file__).resolve().parents[1] / "config"
 
 
 @app.command()
@@ -176,9 +180,88 @@ def db_verify(
     raise typer.Exit(code=0 if report["ok"] else 2)
 
 
+# ---------------------------------------------------------------------------
+# T06：指标计算
+# ---------------------------------------------------------------------------
+
+@metrics_app.command("run")
+def metrics_run(
+    run_id: str = typer.Option(..., "--run-id", help="待计算指标的 run"),
+    db: Path = typer.Option(..., "--db", help="SQLite 库文件路径"),
+    out_dir: Path | None = typer.Option(
+        None, "--out-dir", help="产物目录（默认 runs/<run_id>/metrics，runs/ 已 gitignore）"),
+    params: Path | None = typer.Option(
+        None, "--params", help="阈值配置 YAML（默认 engine/config/metrics.yaml，缺失走代码默认值）"),
+    pricing: Path | None = typer.Option(
+        None, "--pricing", help="单价表 YAML（默认 engine/config/pricing.yaml）"),
+    at: str | None = typer.Option(None, "--at", help="冻结 computed_at（ISO-8601，用于逐字节复现）"),
+    extra_module: list[str] = typer.Option(
+        None, "--extra-module", help="额外指标模块（可重复，用于第三方指标注册）"),
+    pretty: bool = typer.Option(False, "--pretty", help="摘要以缩进 JSON 输出"),
+) -> None:
+    """计算单个 run 的 MetricSet，写 metricset.json + metricset.ext.json。"""
+    from hs_core.metrics import (
+        MetricError,
+        compute_run,
+        load_params_config,
+    )
+
+    out = out_dir or Path("runs") / run_id / "metrics"
+    params_path = params if params is not None else (CONFIG_DIR / "metrics.yaml")
+    pricing_path = pricing if pricing is not None else (CONFIG_DIR / "pricing.yaml")
+    # 显式指定的配置文件不存在 → 报错（不静默退回代码默认值，否则「以为改了阈值其实没改」）
+    for label, path, explicit in (("--params", params_path, params is not None),
+                                  ("--pricing", pricing_path, pricing is not None)):
+        if explicit and not path.exists():
+            typer.echo(f"IO ERROR: {label} 指向的文件不存在: {path}", err=True)
+            raise typer.Exit(code=1)
+    try:
+        metric_params = load_params_config(
+            params_path if params_path.exists() else None,
+            pricing_path if pricing_path.exists() else None)
+        with Store(db) as store:
+            result = compute_run(store, run_id, params=metric_params,
+                                 extra_modules=extra_module or (), at=at, out_dir=out)
+    except OSError as exc:
+        typer.echo(f"IO ERROR: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    except MetricError as exc:
+        typer.echo(f"METRICS ERROR: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+
+    summary = {**result.summary(), "out_dir": str(out),
+               "computed_keys_n": len(result.ext["computed_keys"]),
+               "degraded_keys_n": len(result.metric_set.degraded_metrics),
+               "blocked_reason": result.ext["blocked_reason"]}
+    if result.blocked:
+        typer.echo(f"POLICY BLOCKED: {result.ext['blocked_reason']}", err=True)
+        typer.echo(json.dumps(summary, ensure_ascii=False, indent=2))
+        raise typer.Exit(code=2)
+    typer.echo(json.dumps(summary, ensure_ascii=False, indent=2 if pretty else None))
+    raise typer.Exit(code=0)
+
+
+@metrics_app.command("list")
+def metrics_list(
+    group: str | None = typer.Option(None, "--group", help="按组过滤：result|process|collab|cost"),
+    scope: str | None = typer.Option(None, "--scope", help="按作用域过滤：run|group"),
+) -> None:
+    """列出已注册指标（key / group / unit / direction / scope）。"""
+    from hs_core.metrics import list_metrics, load_builtin_metrics
+
+    load_builtin_metrics()
+    rows = [("KEY", "GROUP", "UNIT", "DIRECTION", "SCOPE", "VERSION")]
+    for spec in list_metrics(group=group, scope=scope):
+        direction = "-" if spec.direction is None else ("up" if spec.direction else "down")
+        rows.append((spec.key, spec.group, spec.unit or "-", direction, spec.scope, spec.version))
+    widths = [max(len(str(r[i])) for r in rows) for i in range(len(rows[0]))]
+    for row in rows:
+        typer.echo("  ".join(str(cell).ljust(widths[i]) for i, cell in enumerate(row)).rstrip())
+    raise typer.Exit(code=0)
+
+
 def main() -> None:
     app()
-
 
 if __name__ == "__main__":
     main()

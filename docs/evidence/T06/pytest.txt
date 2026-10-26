@@ -1,0 +1,11 @@
+$ .venv/Scripts/python.exe -m pytest engine/tests/test_metrics.py engine/tests/test_metrics_core.py -q --basetemp=.tmp-pytest
+........................................................................ [ 85%]
+............                                                             [100%]
+84 passed in 1.78s
+exit=0
+
+$ .venv/Scripts/python.exe -m pytest engine/tests -q --basetemp=.tmp-pytest-all
+........................................................................ [ 61%]
+..............................................                           [100%]
+118 passed in 17.92s
+exit=0
