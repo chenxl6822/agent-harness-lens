@@ -1,0 +1,7 @@
+E3-3 不同 run_id 摄入同一份源（复合主键 (run_id,event_id)）
+runA(t05b-measure) rows=603  runB(t05b-measure-b) rows=603
+event_id 集合完全相同=True（event_id 摘要不含 run_id，同源同 id）
+复合主键 (run_id,event_id) 使两 run 各 603 行互不覆盖；total rows in db=1206
+dump_sha256_runA=77847239c50fbd7236980ee7a48f3a6b7ea4e08bb792eb6ac180b4a12d2b82c3
+dump_sha256_runB=7ffd3293e1b9f88e3bb3fafbf6002c304af6a235816ea72b2214e94d6d031f17
+dump_equal_after_run_id_rebind=True（除 run_id 字段取值外逐字节一致）

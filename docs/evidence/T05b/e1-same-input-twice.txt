@@ -1,0 +1,6 @@
+E3-1 同输入两次摄入（dsh 1646 行源 -> 603 事件，run_id=t05b-measure）
+first : inserted=603 skipped=0 rows=603 time=8.2ms
+second: inserted=0 skipped=603 rows=603 time=1.8ms
+dump_sha256_run1=77847239c50fbd7236980ee7a48f3a6b7ea4e08bb792eb6ac180b4a12d2b82c3
+dump_sha256_run2=77847239c50fbd7236980ee7a48f3a6b7ea4e08bb792eb6ac180b4a12d2b82c3
+identical=True

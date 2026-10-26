@@ -1,0 +1,8 @@
+E3-4 并发写：2 个独立进程同时 ingest 同一 run（WAL + BEGIN IMMEDIATE + busy_timeout=30s）
+worker0: rc=0 out={"inserted": 603, "skipped": 0, "rows": 603, "ms": 7.9} err=
+worker1: rc=0 out={"inserted": 0, "skipped": 603, "rows": 603, "ms": 15.3} err=
+final_rows=603（= 603，零重复行）
+sum_inserted=603（= 603，第二个进程全部 skipped）
+wall_time=999.6ms（含两进程各自 collect）
+实际行为：两进程单事务串行化，无锁死、无报错、无重复；SQLite 单写者模型下靠
+BEGIN IMMEDIATE 抢写锁 + busy_timeout 等待实现，不承诺更强的一致性语义。

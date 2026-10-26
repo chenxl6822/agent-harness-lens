@@ -1,0 +1,3 @@
+吞吐（ingest 含整 run 重算 seq + 单事务提交；首次插入，非幂等热路径）
+dsh_603: events=603 inserted=603 time=8.2ms throughput=73266 events/s db_bytes=471040
+codebuddy_home: events=8908 inserted=8908 time=176.9ms throughput=50344 events/s db_bytes=11239544

@@ -1,0 +1,24 @@
+E3-2 增量摄入（方案 A 整 run 重算）。两个场景：
+
+[场景 1：压力测试] inc.ndjson 先摄 500 行（seed=42 乱序），同名文件追加至 1646 行再摄。
+乱序使追加行的时间戳大量落在既有 seq 区间中间，正面命中任务卡 §2 的 seq 冲突场景。
+before rows=182  after rows=613  seq_dense=True
+partial_ingest: inserted=182 time=2.4ms
+incremental   : inserted=431 skipped=172 updated(seq_rewritten)=180 time=6.5ms
+one_shot_full : inserted=603 time=7.2ms
+dump_sha256_incremental=210b5ae438b7a7a0b14d1e081af2f3540bf1f81da819da98c9731fc273fec512
+dump_sha256_oneshot   =bb8dc77e72246049b54fe36d239afdecf1132b4853e5fabb3473f5c8009c3de1
+identical=False
+差异剖析：after(613) = one_shot(603) + stale_variants(10)。
+stale 变体类型分布={'message.recv': 10}
+成因（源侧 collect 现象，非存储层缺陷）：乱序追加中含对既有 message 的更早观测，
+message.recv 按 message.id 归并、代表观测的 ts 参与 event_id 摘要；部分观测快照下
+先生成的变体 event_id 与全量归并结果不同，Store 以 (run_id,event_id) 保留两者。
+既有行未被改写（仅 seq 重算 180 行）；seq 仍连续稠密；同批重复摄入仍幂等。
+
+[场景 2：真实自然序追加] 源前 500 行（含账本快照）已展开出全部 603 事件，追加行为重复观测。
+before rows=165  after rows=603
+partial: inserted=165  incremental: inserted=438 skipped=165 updated=0
+dump_sha256_incremental=82617a4708162951adfb8a38db6b277d309d54d288938d7cb5f07f01a399f200
+dump_sha256_oneshot   =82617a4708162951adfb8a38db6b277d309d54d288938d7cb5f07f01a399f200
+identical=True（与一次性全量摄入逐字节一致）

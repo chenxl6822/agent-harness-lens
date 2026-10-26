@@ -1,0 +1,30 @@
+== hs ingest 首次（dsh 603，primary_only）==
+{
+  "run_id": "smoke-t05b", "channel_policy": "primary_only",
+  "lines_in": 1646, "units_expanded": 7060, "mapped": 603, "dropped": 6457,
+  "inserted": 603, "updated": 0, "skipped": 0, "total": 603, "events_in_db": 603
+}
+
+== hs ingest 二次（幂等）==
+"inserted": 0, "skipped": 603, "events_in_db": 603
+
+== hs db verify（--ndjson 对照）==
+{
+  "run_id": "smoke-t05b",
+  "rows": 603,
+  "schema_valid": 603,
+  "schema_invalid": 0,
+  "model_valid": 603,
+  "model_invalid": 0,
+  "seq_dense": true,
+  "dup_pk": 0,
+  "ndjson_rows": 603,
+  "rows_match_ndjson": true,
+  "errors": [],
+  "ok": true
+}
+
+== 退出码实测 ==
+merge 默认拒绝（--channel-policy merge）exit=2
+IO 错误（不可写 DB 路径）exit=1
+成功 exit=0
