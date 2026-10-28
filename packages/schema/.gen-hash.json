@@ -5,10 +5,10 @@
     "typescript": "5.6.3"
   },
   "files": {
-    "packages/schema/generated/ts/trace-event.d.ts": "94bf780d4da288daecc4c82e35c616754bfd6d4a4c775517a8805c1dcb9c8c5b",
+    "packages/schema/generated/ts/trace-event.d.ts": "cd0c9eb944dba75f74d120fed7ca48aac0364ca7659540274112707b9646eb09",
     "packages/schema/generated/ts/metric-set.d.ts": "80ebcdec9f1288d6debd0ceb6f9819bd3f8a2b51691baa15690bdce317cb1cb7",
     "packages/schema/generated/ts/taskset.d.ts": "c51f3196642d71fd974bd9749dab2973d8cdaf36119521c33ba333d7133b2aab",
     "packages/schema/generated/ts/capability.d.ts": "3645159d6c7593923adebf8fb535c483cee034108c03147955e87f1c767fcbad",
-    "engine/hs_core/models.py": "98dcd9573315e4be1f8aecb8dda291a8274a59873acc39306f2db5bbe2272493"
+    "engine/hs_core/models.py": "18bd5a881ee304cbfd34ca204d3e1575494aad9a763719b40865a53ce43f9b7b"
   }
 }

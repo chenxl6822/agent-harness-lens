@@ -55,7 +55,7 @@ export interface TraceEvent {
    */
   run_id: string;
   /**
-   * run 内单调自增序号（断点续跑用）
+   * run 内全局单调自增序号，由 T05a collector 的 assign_seq() 在摄入时统一赋号（纯函数：按 (ts, event_id) 排序赋 0..n-1，输入顺序无关、输出确定）；通道适配器写入的 0 仅为摄入前占位值
    */
   seq: number;
   /**
