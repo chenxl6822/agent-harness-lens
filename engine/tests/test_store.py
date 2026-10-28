@@ -21,7 +21,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "engine"))
 
 from hs_core.collector import collect  # noqa: E402
-from hs_core.store import PolicyError, Store, digest_files  # noqa: E402
+from hs_core.store import SCHEMA_USER_VERSION, PolicyError, Store, digest_files  # noqa: E402
 
 RUN_A = "t05b-run-a"
 RUN_B = "t05b-run-b"
@@ -228,6 +228,62 @@ def test_e3_4_concurrent_ingest(db, tmp_path):
         assert s.count_events(RUN_A) == rows
     # 两个进程合计 inserted == 总行数（第二个进程全部 skipped，无重复写入）
     assert sum(r["inserted"] for r in results) == rows
+
+
+# ---------------------------------------------------------------------------
+# T05b-R1 并发首次打开同一个新建库（迁移竞态）
+# ---------------------------------------------------------------------------
+
+_OPEN_WORKER_SNIPPET = """
+import sys, time
+from pathlib import Path
+sys.path.insert(0, {engine!r})
+from hs_core.store import Store
+
+db, t0 = Path({db!r}), {t0!r}
+while time.time() < t0:  # 墙钟对齐：4 个进程在同一时刻进入 Store()，制造真正的首次建库竞态
+    pass
+s = Store(db)
+s.close()
+"""
+
+# 单轮 4 进程碰撞概率实测约 10%（旧实现 40 轮失败 4 轮），故单测内跑多轮以提高回归捕获率。
+_RACE_ROUNDS = 10
+
+
+def test_concurrent_first_open_is_race_safe(tmp_path):
+    """4 个进程同时 Store(同一个新建库)：全部退出码 0，schema 只建一份，库完好。"""
+    import sqlite3
+    import time as _time
+
+    env = {**os.environ, "PYTHONPATH": str(REPO_ROOT / "engine")}
+    for rnd in range(_RACE_ROUNDS):
+        db_path = tmp_path / f"race{rnd}.db"
+        t0 = _time.time() + 0.25
+        code = _OPEN_WORKER_SNIPPET.format(engine=str(REPO_ROOT / "engine"),
+                                           db=str(db_path), t0=t0)
+        procs = [subprocess.Popen([sys.executable, "-c", code], env=env,
+                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                  text=True, encoding="utf-8")
+                 for _ in range(4)]
+        outs = []
+        for i, p in enumerate(procs):
+            out, err = p.communicate(timeout=300)
+            outs.append((i, p.returncode, out, err))
+        for i, rc, out, err in outs:
+            assert rc == 0, f"round{rnd}/worker{i} 失败 rc={rc}: {(err or out)[-800:]}"
+
+        conn = sqlite3.connect(str(db_path))
+        try:
+            assert conn.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_USER_VERSION
+            names = [r[0] for r in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")]
+            assert names.count("runs") == 1 and names.count("events") == 1, names
+            assert len(names) == len(set(names)), f"重复表: {names}"
+            assert conn.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+            assert conn.execute("PRAGMA journal_mode").fetchone()[0].lower() == "wal"
+        finally:
+            conn.close()
 
 
 # ---------------------------------------------------------------------------

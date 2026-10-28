@@ -1,0 +1,5 @@
+Wed Oct 28 12:36:29     2026
+cmd: env -u NODE_OPTIONS PYTHONPATH=engine .venv/Scripts/python.exe -m pytest engine/tests -q --basetemp=.tmp-r1a/full2
+........................................................................ [ 52%]
+.................................................................        [100%]
+137 passed in 17.67s

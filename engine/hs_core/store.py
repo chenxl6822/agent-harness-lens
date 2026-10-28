@@ -21,6 +21,7 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
+import time
 from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -30,6 +31,29 @@ from typing import Iterable, Iterator
 from hs_core.collector import EVENT_TYPES, _iso_to_ms
 
 SCHEMA_USER_VERSION = 1
+
+# 建库/迁移阶段的瞬时错误重试（T05b-R1）。
+# 并发首次打开同一个新建库时，WAL 建立与首个 DDL 存在短暂窗口，SQLite 会抛
+# "attempt to write a readonly database" / "database is locked"；此时连接状态不可信，
+# 必须 close() 后重建连接重试，不能在同一连接上继续。仅限 __init__ 的 PRAGMA 与 _migrate()，
+# ingest() 的事务语义不受影响。
+RETRY_MAX_ATTEMPTS = 5
+RETRY_BACKOFF_MS: tuple[int, ...] = (50, 100, 200, 400)  # 第 1..4 次失败后的退避；第 5 次失败直接抛
+RETRYABLE_SQLITE_MESSAGES: tuple[str, ...] = (
+    "attempt to write a readonly database",
+    "database is locked",
+)
+
+# 观测用计数（只增不减）：建库/迁移阶段实际触发重试的次数。
+RETRY_STATS: dict[str, int] = {"retries": 0}
+
+
+def _is_retryable(exc: BaseException) -> bool:
+    if not isinstance(exc, sqlite3.OperationalError):
+        return False
+    msg = str(exc).lower()
+    return any(s in msg for s in RETRYABLE_SQLITE_MESSAGES)
+
 
 # ---------------------------------------------------------------------------
 # DDL（v1）与迁移骨架
@@ -116,13 +140,39 @@ class Store:
     def __init__(self, path: str | Path, *, busy_timeout_ms: int = 30_000) -> None:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(str(self.path), timeout=busy_timeout_ms / 1000,
-                                     isolation_level=None)  # autocommit；事务显式 BEGIN IMMEDIATE
-        self._conn.execute(f"PRAGMA busy_timeout = {busy_timeout_ms}")
-        self._conn.execute("PRAGMA journal_mode = WAL")
-        self._conn.execute("PRAGMA foreign_keys = ON")
-        self._conn.execute("PRAGMA synchronous = NORMAL")  # WAL 下 NORMAL：应用崩溃不丢，仅断电可能丢最后事务，换 ~10x 写入吞吐
-        self._migrate()
+        self._busy_timeout_ms = busy_timeout_ms
+        self._conn: sqlite3.Connection
+        self._open_with_retry()
+
+    # -- 建库/迁移重试 -------------------------------------------------------
+
+    def _connect(self) -> sqlite3.Connection:
+        return sqlite3.connect(str(self.path), timeout=self._busy_timeout_ms / 1000,
+                               isolation_level=None)  # autocommit；事务显式 BEGIN IMMEDIATE
+
+    def _open_with_retry(self) -> None:
+        """建连接 + 设置 PRAGMA + 迁移；遇到并发首次建库的瞬时错误则 close() 换连接重试。
+
+        只重试 RETRY_MAX_ATTEMPTS 次（退避 RETRY_BACKOFF_MS），超限原样抛出，绝不吞异常。
+        """
+        for attempt in range(1, RETRY_MAX_ATTEMPTS + 1):
+            self._conn = self._connect()
+            try:
+                self._conn.execute(f"PRAGMA busy_timeout = {self._busy_timeout_ms}")
+                self._conn.execute("PRAGMA journal_mode = WAL")
+                self._conn.execute("PRAGMA foreign_keys = ON")
+                self._conn.execute("PRAGMA synchronous = NORMAL")  # WAL 下 NORMAL：应用崩溃不丢，仅断电可能丢最后事务，换 ~10x 写入吞吐
+                self._migrate()
+                return
+            except sqlite3.OperationalError as exc:
+                try:
+                    self._conn.close()  # readonly/locked 的连接状态不可自愈，必须换新连接
+                except sqlite3.Error:
+                    pass
+                if not _is_retryable(exc) or attempt == RETRY_MAX_ATTEMPTS:
+                    raise
+                RETRY_STATS["retries"] += 1
+                time.sleep(RETRY_BACKOFF_MS[attempt - 1] / 1000)
 
     def close(self) -> None:
         self._conn.close()
@@ -136,21 +186,35 @@ class Store:
     # -- schema 版本管理 ----------------------------------------------------
 
     def _migrate(self) -> None:
-        current = self._conn.execute("PRAGMA user_version").fetchone()[0]
-        if current > SCHEMA_USER_VERSION:
-            raise StoreError(f"db user_version={current} > 引擎支持的 {SCHEMA_USER_VERSION}（请升级引擎）")
-        for m in MIGRATIONS:
-            if m["version"] <= current:
-                continue
-            self._conn.execute("BEGIN IMMEDIATE")
-            try:
+        """在写锁内判断版本：并发首次打开时，另一个进程可能已把库升级完。
+
+        必须先 BEGIN IMMEDIATE 再读 user_version——事务外读到的 0 是过期快照，
+        照旧重跑 DDL 就会撞上 WAL 未就绪（readonly/locked）。
+        同时这一步顺带强制连接真正拿到写锁：与建库并发的连接可能停在
+        "needs recovery" 的只读 pager 状态，只有在这里真写一次才能暴露并触发重连。
+        """
+        self._conn.execute("BEGIN IMMEDIATE")
+        try:
+            current = self._conn.execute("PRAGMA user_version").fetchone()[0]
+            if current > SCHEMA_USER_VERSION:
+                raise StoreError(
+                    f"db user_version={current} > 引擎支持的 {SCHEMA_USER_VERSION}（请升级引擎）")
+            target = current
+            for m in MIGRATIONS:
+                if m["version"] <= current:
+                    continue
                 for ddl in m["ddl"]:
-                    self._conn.execute(ddl)
-                self._conn.execute(f"PRAGMA user_version = {m['version']}")
-                self._conn.execute("COMMIT")
-            except BaseException:
+                    self._conn.execute(ddl)  # DDL 均带 IF NOT EXISTS：并发重复执行也不报错
+                target = m["version"]
+            # 幂等回写 user_version（无迁移时也写同值）：这是一次真实写页，用来验证连接确实可写。
+            # 与建库并发的连接可能停在 "needs recovery" 的只读 pager 状态，BEGIN IMMEDIATE
+            # 并不暴露它，只有真写才抛 readonly → 由 _open_with_retry() 关连接重建并重试。
+            self._conn.execute(f"PRAGMA user_version = {target}")
+            self._conn.execute("COMMIT")
+        except BaseException:
+            if self._conn.in_transaction:
                 self._conn.execute("ROLLBACK")
-                raise
+            raise
 
     # -- 写入 ----------------------------------------------------------------
 

@@ -1,0 +1,155 @@
+Wed Oct 28 12:34:08     2026
+=== test_concurrent_first_open_is_race_safe (4 procs x 10 rounds, 全新库) ===
+.
+1 passed in 5.50s
+
+=== 附加证据1：4 进程墙钟同步首开新建库 x40 轮（独立探针） ===
+  round1: worker retries=1
+  round1: worker retries=1
+  round1: worker retries=1
+  round2: worker retries=1
+  round2: worker retries=1
+  round2: worker retries=2
+  round3: worker retries=1
+  round3: worker retries=1
+  round3: worker retries=1
+  round4: worker retries=1
+  round5: worker retries=1
+  round5: worker retries=1
+  round5: worker retries=1
+  round6: worker retries=1
+  round6: worker retries=1
+  round6: worker retries=1
+  round7: worker retries=2
+  round7: worker retries=1
+  round7: worker retries=1
+  round8: worker retries=1
+  round8: worker retries=1
+  round8: worker retries=1
+  round9: worker retries=1
+  round9: worker retries=1
+  round9: worker retries=1
+  round10: worker retries=1
+  round10: worker retries=1
+  round10: worker retries=1
+  round11: worker retries=1
+  round11: worker retries=1
+  round11: worker retries=1
+  round12: worker retries=1
+  round12: worker retries=1
+  round13: worker retries=1
+  round13: worker retries=1
+  round13: worker retries=1
+  round14: worker retries=1
+  round14: worker retries=1
+  round14: worker retries=1
+  round15: worker retries=1
+  round15: worker retries=1
+  round15: worker retries=1
+  round16: worker retries=1
+  round16: worker retries=1
+  round16: worker retries=1
+  round17: worker retries=1
+  round17: worker retries=1
+  round17: worker retries=1
+  round18: worker retries=1
+  round18: worker retries=1
+  round18: worker retries=1
+  round19: worker retries=1
+  round19: worker retries=1
+  round19: worker retries=1
+  round20: worker retries=1
+  round20: worker retries=1
+  round20: worker retries=1
+  round21: worker retries=1
+  round21: worker retries=1
+  round21: worker retries=1
+  round21: worker retries=1
+  round22: worker retries=2
+  round22: worker retries=1
+  round22: worker retries=2
+  round23: worker retries=1
+  round23: worker retries=1
+  round23: worker retries=1
+  round24: worker retries=1
+  round24: worker retries=1
+  round24: worker retries=1
+  round25: worker retries=1
+  round25: worker retries=1
+  round25: worker retries=1
+  round26: worker retries=1
+  round26: worker retries=1
+  round26: worker retries=1
+  round27: worker retries=1
+  round27: worker retries=1
+  round27: worker retries=1
+  round28: worker retries=1
+  round28: worker retries=1
+  round28: worker retries=1
+  round29: worker retries=1
+  round29: worker retries=1
+  round29: worker retries=1
+  round30: worker retries=1
+  round30: worker retries=1
+  round30: worker retries=1
+  round31: worker retries=1
+  round31: worker retries=1
+  round31: worker retries=1
+  round32: worker retries=1
+  round32: worker retries=1
+  round32: worker retries=1
+  round33: worker retries=1
+  round33: worker retries=1
+  round33: worker retries=2
+  round34: worker retries=1
+  round34: worker retries=1
+  round34: worker retries=1
+  round35: worker retries=2
+  round35: worker retries=1
+  round35: worker retries=1
+  round36: worker retries=1
+  round36: worker retries=1
+  round36: worker retries=1
+  round37: worker retries=1
+  round37: worker retries=1
+  round37: worker retries=1
+  round38: worker retries=1
+  round38: worker retries=1
+  round38: worker retries=1
+  round39: worker retries=1
+  round39: worker retries=1
+  round39: worker retries=1
+rounds=40 failed_rounds=0
+
+=== 附加证据2：同进程 8 线程 barrier 首开新建库 x20 轮 ===
+threads rounds=20 failed_rounds=0 total_retries=117
+
+=== 附加证据3：2 进程同时 ingest，观测 RETRY_STATS（每轮恰好 1 个 worker 重试 1 次后成功） ===
+(探针：collect + 墙钟同步后 Store() + ingest，DIAG 由子进程打印)
+r0 rc=0 DIAG {"uv": 1, "jm": "wal", "runs": 1, "retries": 1}
+r0 rc=0 DIAG {"uv": 1, "jm": "wal", "runs": 0, "retries": 0}
+r1 rc=0 DIAG {"uv": 1, "jm": "wal", "runs": 0, "retries": 0}
+r1 rc=0 DIAG {"uv": 1, "jm": "wal", "runs": 1, "retries": 1}
+r2 rc=0 DIAG {"uv": 1, "jm": "wal", "runs": 1, "retries": 1}
+r2 rc=0 DIAG {"uv": 1, "jm": "wal", "runs": 0, "retries": 0}
+r3 rc=0 DIAG {"uv": 1, "jm": "wal", "runs": 0, "retries": 0}
+r3 rc=0 DIAG {"uv": 1, "jm": "wal", "runs": 1, "retries": 1}
+r4 rc=0 DIAG {"uv": 1, "jm": "wal", "runs": 0, "retries": 0}
+r4 rc=0 DIAG {"uv": 1, "jm": "wal", "runs": 1, "retries": 1}
+r5 rc=0 DIAG {"uv": 1, "jm": "wal", "runs": 0, "retries": 0}
+r5 rc=0 DIAG {"uv": 1, "jm": "wal", "runs": 1, "retries": 1}
+r6 rc=0 DIAG {"uv": 1, "jm": "wal", "runs": 1, "retries": 1}
+r6 rc=0 DIAG {"uv": 1, "jm": "wal", "runs": 0, "retries": 0}
+r7 rc=0 DIAG {"uv": 1, "jm": "wal", "runs": 1, "retries": 1}
+r7 rc=0 DIAG {"uv": 1, "jm": "wal", "runs": 0, "retries": 0}
+r8 rc=0 DIAG {"uv": 1, "jm": "wal", "runs": 1, "retries": 1}
+r8 rc=0 DIAG {"uv": 1, "jm": "wal", "runs": 0, "retries": 0}
+r9 rc=0 DIAG {"uv": 1, "jm": "wal", "runs": 0, "retries": 0}
+r9 rc=0 DIAG {"uv": 1, "jm": "wal", "runs": 1, "retries": 1}
+r10 rc=0 DIAG {"uv": 1, "jm": "wal", "runs": 1, "retries": 1}
+r10 rc=0 DIAG {"uv": 1, "jm": "wal", "runs": 0, "retries": 0}
+r11 rc=0 DIAG {"uv": 1, "jm": "wal", "runs": 0, "retries": 0}
+r11 rc=0 DIAG {"uv": 1, "jm": "wal", "runs": 1, "retries": 1}
+probe_write=False rounds=12 failed=0
+
+=== 对照：修复前同探针 12 轮失败 9 轮；修复中间版（保留事务外快路径）12 轮失败 11 轮 ===
