@@ -1,0 +1,73 @@
+%% ============================================================
+%% T01 · MetricSet 契约 1.1 —— 时序图
+%% 唯一来源（body 与之逐字一致，改动请两边同步）：
+%%   design/T01-schema变更-设计与任务卡.md  §7
+%%
+%% 本文件含两张图：一张 .mermaid 文件只能声明一张图，
+%%   图 1（写侧 hs metrics run）在下方；
+%%   图 2（读侧 T11 版本门控）在第二张 %% 分隔线之后，
+%%   渲染/复制时请各自单独粘贴。
+%% ============================================================
+
+sequenceDiagram
+    autonumber
+    participant CLI as hs metrics run
+    participant M as MetricsAssembly<br/>(metrics.py)
+    participant S as RunStore
+    participant W as write_result
+    participant V as schema.validate<br/>(Draft202012Validator)
+
+    CLI->>M: compute_run(store, run_id, params, out_dir)
+    M->>S: get_run(run_id)
+    S-->>M: {channel_policy, platform, event_count}
+    alt channel_policy != primary_only
+        M->>M: 13 个 key 全部 value=null<br/>degraded[key]={reason:"blocked", detail:BLOCKED_REASON}
+    else primary_only
+        M->>S: iter_events(run_id, order_by="seq")
+        S-->>M: events[]
+        loop 每个已注册指标（按 key 字典序）
+            M->>M: spec.fn(events, params, ctx) → MetricOutcome
+            alt outcome.value is None
+                M->>M: degraded[key]={reason, detail}（reason ∈ DEGRADE_REASONS）
+            else
+                M->>M: 校验 evidence 非空 + confidence 非空 + event_id 在 seq_by_id 内
+            end
+        end
+        M->>M: _data_quality(events) → flags / details / snapshot_digest
+    end
+    M->>M: _assert_invariants()：C1–C5 五条（违反即抛 MetricAssemblyError，不做静默修补）
+    M->>M: canonical_sha256（排除 computed_at）
+    M->>W: MetricSetResult(metric_set, ext)
+    W->>W: schema_dict() 剪枝 6 项 None（坑 1）
+    W->>W: 写 metricset.json（metricset_version="1.1" / channel_policy / data_quality / degraded）
+    W->>W: 写 metricset.ext.json（canonical_sha256 / degraded_reasons 兼容镜像 / details …）
+    CLI->>V: hs schema check --kind metric-set （G16 ④）
+    V-->>CLI: 0 = PASS / 1 = FAIL（含 C1–C6 全部条件规则）
+
+<!-- 图 2：读侧版本门控（GitHub 只渲染第一张，请单独粘贴）-->
+
+%% ------------------------------------------------------------
+%% 图 2：读侧（T11，按 metricset_version 门控分支）
+%%        单独粘贴到 mermaid.live 渲染；GitHub 只渲染本文件的第一张图
+%% ------------------------------------------------------------
+
+sequenceDiagram
+    autonumber
+    participant R as T11 报告层
+    participant F as metricset.json
+    participant X as metricset.ext.json
+
+    R->>F: 读取
+    F-->>R: {metricset_version?, groups, degraded_metrics, …}
+    alt 有 metricset_version（>= 1.1）
+        R->>R: ver = "1.1"
+        R->>R: reason ← mv.degraded.reason（主文件自足）
+        R->>R: policy ← set.channel_policy
+        R->>R: 质量信号 ← set.data_quality.flags
+        R->>R: 跨 run 下钻 ← (ref.run_id, ref.event_ids)
+    else 无 metricset_version（== 1.0 历史产物）
+        R->>X: 读旁路（唯一允许读 ext 的分支）
+        X-->>R: degraded_reasons / channel_policy / data_quality_flags
+        R->>R: 渲染时打标："旧契约产物，原因取自旁路文件"
+    end
+    R->>R: 渲染：指标值 / 置信度 / 降级原因 / 数据质量提示条

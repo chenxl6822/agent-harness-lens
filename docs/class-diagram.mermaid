@@ -1,0 +1,64 @@
+%% ============================================================
+%% T01 · MetricSet 契约 1.1 —— 类图
+%% 唯一来源（body 与之逐字一致，改动请两边同步）：
+%%   design/T01-schema变更-设计与任务卡.md  §3.3
+%% 图内 <<new>> 标记 = 本卡新增字段；断言表（C1–C6）见 §3.3 表格
+%% ============================================================
+
+classDiagram
+    direction LR
+    class MetricSet {
+        +str run_id
+        +str schema_version = "1.0.0"
+        +str engine_version
+        +str computed_at
+        +Groups groups
+        +list~str~ degraded_metrics
+        +str metricset_version <<new, optional>> = "1.1"
+        +str channel_policy <<new, optional>> : primary_only | merge
+        +DataQuality data_quality <<new, optional>>
+    }
+    class Groups {
+        +list~MetricValue~ result
+        +list~MetricValue~ process
+        +list~MetricValue~ collaboration
+        +list~MetricValue~ cost
+    }
+    class MetricValue {
+        +str key
+        +str label_zh
+        +number|bool|null value
+        +str unit
+        +bool higher_is_better
+        +str confidence <<conditional required>>
+        +list~EvidenceRef~ evidence
+        +Degraded degraded <<new, optional>>
+    }
+    class MetricValueV11 {
+        <<1.1 严格版，$ref 组合>>
+    }
+    class Degraded {
+        <<new>>
+        +str reason : no_source|insufficient_data|needs_input|blocked|computation_error|other:*
+        +str detail
+    }
+    class DataQuality {
+        <<new>>
+        +list~str~ flags : tool_call_identity_violated|tool_call_signature_degenerate
+        +str snapshot_digest : ^sha256:[0-9a-f]{16}$
+    }
+    class EvidenceRef {
+        +list~str~ event_ids : minItems=1
+        +str run_id <<new, optional, default=MetricSet.run_id>>
+        +list~str~ span_ids
+        +list~str~ agent_ids
+        +list~str~ task_ids
+        +str note
+    }
+
+    MetricSet "1" *-- "1" Groups
+    Groups "1" *-- "0..*" MetricValue
+    MetricValue "1" *-- "0..*" EvidenceRef
+    MetricValue "0..*" --> "0..1" Degraded : value=null 时必填
+    MetricSet "1" *-- "0..1" DataQuality : 带 metricset_version 时必填
+    MetricValueV11 --|> MetricValue : allOf $ref（不复制字段）
