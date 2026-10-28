@@ -83,7 +83,10 @@ class TraceEvent(BaseModel):
         ..., description='ULID，字典序即时间序'
     )
     run_id: constr(min_length=1) = Field(..., description='评测执行单元 ID')
-    seq: conint(ge=0) = Field(..., description='run 内单调自增序号（断点续跑用）')
+    seq: conint(ge=0) = Field(
+        ...,
+        description='run 内全局单调自增序号，由 T05a collector 的 assign_seq() 在摄入时统一赋号（纯函数：按 (ts, event_id) 排序赋 0..n-1，输入顺序无关、输出确定）；通道适配器写入的 0 仅为摄入前占位值',
+    )
     ts: AwareDatetime = Field(
         ..., description='事件发生时间，ISO 8601 UTC，毫秒精度（墙钟）'
     )
