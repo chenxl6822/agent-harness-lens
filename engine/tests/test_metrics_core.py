@@ -406,16 +406,16 @@ def test_retry_rate_zero_when_no_calls():
 
 def test_usage_of_reads_all_known_shapes():
     assert _usage_of(ev(0, "llm.response", {"usage": {"input_tokens": 10, "output_tokens": 5}})) == \
-        {"in": 10, "out": 5, "total": 15}
+        {"in": 10, "out": 5, "total": 15, "cached_in": None}
     assert _usage_of(ev(0, "llm.response", {"providerData": {"usage": {"prompt_tokens": 7,
                                                                      "completion_tokens": 3}}})) == \
-        {"in": 7, "out": 3, "total": 10}
+        {"in": 7, "out": 3, "total": 10, "cached_in": None}
     assert _usage_of(ev(0, "llm.response", {"inputTokens": 2, "outputTokens": 4})) == \
-        {"in": 2, "out": 4, "total": 6}
+        {"in": 2, "out": 4, "total": 6, "cached_in": None}
     assert _usage_of(ev(0, "llm.response", {"totalTokens": 9})) == \
-        {"in": None, "out": None, "total": 9}
+        {"in": None, "out": None, "total": 9, "cached_in": None}
     assert _usage_of(ev(0, "llm.response", {"usage": {"input_tokens": "12", "output_tokens": 1}})) == \
-        {"in": 12, "out": 1, "total": 13}
+        {"in": 12, "out": 1, "total": 13, "cached_in": None}
     assert _usage_of(ev(0, "llm.response", {"usage": {"input_tokens": -3}})) is None
     assert _usage_of(ev(0, "llm.response", {"span_name": "x", "status": "ok"})) is None
 
@@ -548,6 +548,88 @@ def test_cost_cny_degrades_when_tokens_missing():
     out = cost_cny([ev(0, "llm.response", {"duration_ms": 5})], MetricParams(), ctx())
     assert out.value is None and out.reason == "no_source"
     assert "连带" in out.detail
+
+
+# ---------------------------------------------------------------------------
+# cost.cny 缓存拆分（T05d）
+# ---------------------------------------------------------------------------
+
+_GLM = {"in": 0.0000008, "in_cached": 0.00000023, "out": 0.0000028}
+
+
+def _usage_event(seq: int, model: str, *, cached: int | None, cached_camel: bool = False):
+    """构造一条带 usage 的 llm.response（in=1000, cached=?, out=100）。"""
+    usage: dict = {"input_tokens": 1000, "output_tokens": 100}
+    if cached is not None:
+        detail = {"cached_tokens": cached}
+        if cached_camel:
+            usage["inputTokensDetails"] = [detail]
+        else:
+            usage["input_tokens_details"] = detail
+    return ev(seq, "llm.response", {"model": model, "usage": usage})
+
+
+def test_cost_cny_cache_split_golden():
+    """25 条 usage（in=1000, cached=800, out=100）：命中段按 in_cached，未命中段按 in。"""
+    events = [_usage_event(i, "glm-5.3-flash", cached=800) for i in range(25)]
+    expected = 25 * (200 * 0.8e-6 + 800 * 0.23e-6 + 100 * 2.8e-6)
+    out = cost_cny(events, MetricParams(pricing={"glm-5.3-flash": dict(_GLM)}), ctx())
+    assert out.value == pytest.approx(expected, abs=1e-6)
+    assert out.confidence == "low"
+    assert "缓存拆分" in out.note and "应用 25 条" in out.note
+
+
+def test_cost_cny_cache_split_camelcase_detail():
+    """camelCase 形态 inputTokensDetails[0].cached_tokens 同样读到。"""
+    events = [_usage_event(0, "glm-5.3-flash", cached=800, cached_camel=True)]
+    expected = 200 * 0.8e-6 + 800 * 0.23e-6 + 100 * 2.8e-6
+    out = cost_cny(events, MetricParams(pricing={"glm-5.3-flash": dict(_GLM)}), ctx())
+    assert out.value == pytest.approx(expected, abs=1e-6)
+
+
+def test_usage_of_cached_in_none_when_missing():
+    """cached_in 读不到是 None，绝不填 0（0 与「未采集」是两件事）。"""
+    got = _usage_of(ev(0, "llm.response", {"usage": {"input_tokens": 10, "output_tokens": 5}}))
+    assert got == {"in": 10, "out": 5, "total": 15, "cached_in": None}
+    got = _usage_of(_usage_event(0, "m", cached=800))
+    assert got["cached_in"] == 800
+
+
+def test_cost_cny_cache_detail_missing_falls_back_to_miss_price():
+    """cached_in 未采集 → 整段按未命中价（上界），note 写明回落原因。"""
+    events = [_usage_event(i, "glm-5.3-flash", cached=None) for i in range(3)]
+    expected = 3 * (1000 * 0.8e-6 + 100 * 2.8e-6)
+    out = cost_cny(events, MetricParams(pricing={"glm-5.3-flash": dict(_GLM)}), ctx())
+    assert out.value == pytest.approx(expected, abs=1e-6)
+    assert "缓存明细未采集" in out.note
+
+
+def test_cost_cny_no_cached_price_falls_back():
+    """in_cached 为 null → 回落按未命中价，note 写明「无缓存单价」。"""
+    events = [_usage_event(0, "m1", cached=800)]
+    out = cost_cny(events, MetricParams(pricing={"m1": {"in": 0.001, "in_cached": None,
+                                                        "out": 0.002}}), ctx())
+    assert out.value == pytest.approx(1000 * 0.001 + 100 * 0.002, abs=1e-6)
+    assert "无缓存单价" in out.note
+
+
+def test_cost_cny_cached_greater_than_in_is_clamped():
+    """cached > in（脏数据）→ 被 clamp 到 in，不出现负数成本。"""
+    events = [_usage_event(0, "glm-5.3-flash", cached=5000)]
+    # clamp 后 cached=1000，未命中段为 0：cost = 1000*0.23e-6 + 100*2.8e-6
+    expected = 1000 * 0.23e-6 + 100 * 2.8e-6
+    out = cost_cny(events, MetricParams(pricing={"glm-5.3-flash": dict(_GLM)}), ctx())
+    assert out.value == pytest.approx(expected, abs=1e-6)
+    assert out.value is not None and out.value >= 0
+
+
+def test_cost_cny_unregistered_model_still_no_source():
+    """未登记模型：default 也空 → no_source 且 detail 列出模型名（行为与 T05c 一致）。"""
+    events = [_usage_event(0, "no-such-model", cached=800)]
+    out = cost_cny(events, MetricParams(pricing={"default": {"in": None, "in_cached": None,
+                                                             "out": None}}), ctx())
+    assert out.value is None and out.reason == "no_source"
+    assert "no-such-model" in out.detail
 
 
 # ---------------------------------------------------------------------------

@@ -1,23 +1,55 @@
-# T06 单价表结构（**本轮只建结构，单价一律留 null 占位**）
+# 单价表（人民币 / **每 token**）
 #
-# 主理人裁定 Q8：禁止编造单价——编造的单价会让 cost.cny 变成假数据，
-# 而"成本收益"是本项目的核心结论之一。
+# 单位说明：官方标价均为「元 / 百万 tokens」，本文件一律除以 1e6 换算成「元 / token」。
+# 换算依据：`metrics_core.cost_cny` 的口径是 Σ(tokens × 单价)，tokens 是**个**，不是百万。
 #
-# 用法（仅结构示意，等主理人提供真实单价表后再填）：
-#   <model 名>:
-#     in:  <每输入 token 的单价，人民币>
-#     out: <每输出 token 的单价，人民币>
-#   default:            # 未命中模型时的兜底；同样留空则 cost.cny 降级
-#     in:  null
-#     out: null
+# ── 数据来源（2026-10-28 读取官方定价页，非二手转述）─────────────────────────
+# DeepSeek  https://api-docs.deepseek.com/zh-cn/quick_start/pricing
+#   模型 deepseek-flash（模型版本 DeepSeek-V4.1-Flash-1017）
+#     百万tokens 输入（缓存命中）：空闲 0.02 元 / 高峰 0.04 元
+#     百万tokens 输入（未命中）  ：空闲 1.00 元 / 高峰 2.00 元
+#     百万tokens 输出            ：空闲 4.00 元 / 高峰 8.00 元
+#   峰谷定义：北京时间 周一至周五 9:00–12:00、14:00–18:00 为高峰（不含法定节假日），
+#             其余时段（含周末与法定节假日全天）为空闲，空闲 = 高峰的一半。
+#   旧模型名 deepseek-v4-flash / deepseek-v4-flash-vision-exp 仍可调用，按 Flash 价计费。
 #
-# 读到空单价（null）时：cost.cny 输出 null + reason=no_source，
-# detail 写「单价表未配置」。单价单位由填表人自行声明并写进 docs/metrics-engine.md。
+# 智谱      https://bigmodel.cn/pricing
+#   GLM-5.3-Flash（1M 上下文）
+#     输入 0.8 元 / M；输出 2.8 元 / M；缓存命中 0.23 元 / M；缓存存储限时免费
+#     注：该模型当前有限时五折活动（输入 0.4 / 输出 1.4 / 缓存命中 0.115）。
+#
+# ── 口径：本表算出的是成本**上界**，两处偏差已知且刻意不消除 ────────────────
+#   1) DeepSeek 取**高峰价**（空闲时段实际半价）→ 非高峰时段的真实成本更低。
+#   2) 输入一律按**缓存未命中**价计 → payload 里的 `usage.input_tokens_details.cached_tokens`
+#      未参与抵扣，缓存命中部分被高估（实测缓存命中占比很高，故高估幅度可能不小）。
+#   3) 智谱取**标准价**而非限时活动价 → 活动期间真实成本是表中一半。
+#   理由：A/B 两臂必须用同一把尺子，且价格随时会变（DeepSeek 明示保留调价权）。
+#   要更准，需要「按 cached_tokens 拆段计价 + 按时间判峰谷」，属独立卡（T05d 候选），
+#   不在已验收的 T05c 范围内。
+#
+# ── 匹配规则 ────────────────────────────────────────────────────────────
+# key 必须与事件 `payload.model` **逐字相同**。CodeBuddy 实测出现的取值：
+#   glm-5.3-flash / deepseek-v4.1-flash
+# DeepSeek 官方现名是 deepseek-flash，故两种写法都登记，指向同一模型同一价位。
+# 命中不到具体模型时回落到 default；default 留 null 则 cost.cny 继续降级（no_source）。
 
+glm-5.3-flash:
+  in: 0.0000008     # 0.8 元 / M
+  in_cached: 0.00000023   # 0.23 元 / M（缓存命中）
+  out: 0.0000028    # 2.8 元 / M
+
+deepseek-v4.1-flash:      # CodeBuddy payload 中观测到的写法
+  in: 0.000002      # 2 元 / M（高峰·缓存未命中）
+  in_cached: 0.00000004   # 0.04 元 / M（高峰·缓存命中）
+  out: 0.000008     # 8 元 / M（高峰）
+
+deepseek-flash:           # 官方现名（同一模型、同一价位）
+  in: 0.000002
+  in_cached: 0.00000004
+  out: 0.000008
+
+# 未登记模型一律不猜：留 null → cost.cny 降级为 no_source 并列出缺失单价的模型名。
 default:
   in: null
+  in_cached: null
   out: null
-
-# 实测 llm.response 的 payload 只有 {span_name, status, duration_ms}（701/701 无 model 字段），
-# 通道 B transcript 的 providerData 含 model 名但被 primary_only 主源策略挡在门外（T05 v2 补采）。
-# 因此本轮即使填了单价也无 model 可匹配 → 仍需 T05 v2。此处刻意留空。

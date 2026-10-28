@@ -70,6 +70,11 @@ _USAGE_KEYS: dict[str, tuple[str, ...]] = {
     "total": ("total_tokens", "totalTokens"),
 }
 
+# 缓存命中明细的容器键（snake_case 与 camelCase 两种形态；值可为 dict 或单元素 list）
+_CACHED_DETAIL_KEYS = ("input_tokens_details", "inputTokensDetails")
+# 缓存命中数字段（T05c 采集为 cached_tokens，camelCase 兼容 cachedTokens）
+_CACHED_TOKEN_KEYS = ("cached_tokens", "cachedTokens")
+
 
 # ---------------------------------------------------------------------------
 # 内部纯函数小件
@@ -431,11 +436,33 @@ def _first_number(src: dict, keys: Sequence[str]) -> int | float | None:
     return None
 
 
+def _cached_in_of(src: dict) -> int | float | None:
+    """从 usage 来源 dict 里读缓存命中输入 tokens（读不到返回 None，绝不填 0）。
+
+    兼容形态：`input_tokens_details.cached_tokens`（snake_case dict）、
+    `inputTokensDetails[0].cached_tokens`（camelCase list）。值可为 dict 或单元素 list。
+    """
+    for dkey in _CACHED_DETAIL_KEYS:
+        detail = src.get(dkey)
+        if isinstance(detail, dict):
+            detail = [detail]
+        if not isinstance(detail, (list, tuple)):
+            continue
+        for item in detail:
+            if not isinstance(item, dict):
+                continue
+            value = _first_number(item, _CACHED_TOKEN_KEYS)
+            if value is not None:
+                return value
+    return None
+
+
 def _usage_of(event: dict) -> dict | None:
     """从一个事件读 usage（读不到返回 None，绝不抛错、绝不写死不可用）。
 
     扫描顺序：payload.usage → payload.providerData.usage → labels.usage → payload 顶层 →
     providerData 顶层。任一来源读到任一 token 数字即返回；total 缺失时用 in+out 补齐。
+    cached_in 为缓存命中输入 tokens（T05d），读不到为 None（0 与「未采集」是两件事）。
     """
     payload = _payload(event)
     labels = _labels(event)
@@ -457,7 +484,8 @@ def _usage_of(event: dict) -> dict | None:
         tokens_in, tokens_out, total = values["in"], values["out"], values["total"]
         if total is None and tokens_in is not None and tokens_out is not None:
             total = tokens_in + tokens_out
-        return {"in": tokens_in, "out": tokens_out, "total": total}
+        return {"in": tokens_in, "out": tokens_out, "total": total,
+                "cached_in": _cached_in_of(src)}
     return None
 
 
@@ -951,7 +979,11 @@ def tokens_out(events: Sequence[dict], params: MetricParams,
     unit="cny", direction=False, scope="run", event_types=("llm.response",))
 def cost_cny(events: Sequence[dict], params: MetricParams,
              ctx: MetricContext) -> MetricOutcome:
-    """Σ(tokens_in × 单价in + tokens_out × 单价out)，单价取自 pricing 配置（本轮留空占位）。"""
+    """Σ(未命中输入×单价in + 缓存命中输入×单价in_cached + 输出×单价out)，单价取自 pricing 配置。
+
+    T05d：按缓存命中拆分计价。cached_in 未采集或缺 in_cached 单价时，整段回落按未命中价
+    （成本上界），并在 note 写明回落原因；不引入峰谷时段判断，一律按表内登记基准价。
+    """
     responses, usages = _usage_scan(events)
     priced = [(ev, u) for ev, u in zip(responses, usages)
               if u and u.get("in") is not None and u.get("out") is not None]
@@ -963,23 +995,66 @@ def cost_cny(events: Sequence[dict], params: MetricParams,
     total = 0.0
     unpriced: set[str] = set()
     used_default = 0
+    split_applied = 0        # 应用了缓存拆分的条数
+    no_cached_detail = 0     # cached_in 未采集 → 整段按未命中价（上界）
+    no_cached_price = 0      # 无 in_cached 单价 → 整段按未命中价（上界）
+    per_model: dict[str, dict] = {}
     for ev, usage in priced:
         model = _model_of(ev)
         entry = pricing.get(model) if model is not None else None
+        via_default = False
         if not isinstance(entry, dict) or entry.get("in") is None or entry.get("out") is None:
             entry = pricing.get("default")
+            via_default = True
             used_default += 1
         if not isinstance(entry, dict) or entry.get("in") is None or entry.get("out") is None:
             unpriced.add(model or "<model 缺失>")
             continue
-        total += float(usage["in"]) * float(entry["in"]) + float(usage["out"]) * float(entry["out"])
+        tokens_in = float(usage["in"])
+        tokens_out = float(usage["out"])
+        price_in = float(entry["in"])
+        price_out = float(entry["out"])
+        cached_in = usage.get("cached_in")
+        price_cached = entry.get("in_cached")
+        if cached_in is not None and price_cached is not None:
+            # 防脏数据越界：命中数不得大于输入总量，未命中段不得为负
+            cached = min(float(cached_in), tokens_in)
+            cost = (tokens_in - cached) * price_in + cached * float(price_cached) + tokens_out * price_out
+        else:
+            # 回落：整段按未命中价（成本上界）
+            cost = tokens_in * price_in + tokens_out * price_out
+            if cached_in is None:
+                no_cached_detail += 1
+            else:
+                no_cached_price += 1
+        total += cost
+        key = (model or "<model 缺失>") + ("(default 兜底)" if via_default else "")
+        slot = per_model.setdefault(key, {"n": 0, "cny": 0.0, "split": 0})
+        slot["n"] += 1
+        slot["cny"] += cost
+        if cached_in is not None and price_cached is not None:
+            slot["split"] += 1
+            split_applied += 1
     if unpriced:
         return MetricOutcome.na(
             "no_source",
             f"单价表未配置：`pricing.yaml` 缺这些模型的单价 {sorted(unpriced)}（本轮单价留空占位，"
             "禁止编造单价——编造价会让成本指标变成假数据）")
+    model_breakdown = "、".join(
+        f"{name} {slot['n']} 条 {slot['cny']:.6f} 元（缓存拆分 {slot['split']}/{slot['n']}）"
+        for name, slot in sorted(per_model.items()))
+    fallback = []
+    if no_cached_detail:
+        fallback.append(f"{no_cached_detail} 条缓存明细未采集，按未命中价计（上界）")
+    if no_cached_price:
+        fallback.append(f"{no_cached_price} 条无缓存单价，按未命中价计")
     note = (f"按 pricing 配置计价：{len(priced)} 条 llm.response 命中单价"
-            f"（其中 {used_default} 条使用 default 兜底）；口径为派生（token 数 × 单价换算，非直接观测）")
+            f"（其中 {used_default} 条使用 default 兜底）；"
+            f"缓存拆分（(in-cached)×in + cached×in_cached + out×out）应用 {split_applied} 条"
+            + (f"；回落：{'；'.join(fallback)}" if fallback else "")
+            + f"；逐模型：{model_breakdown}"
+            + "；单价基准=pricing.yaml 登记值（DeepSeek 高峰价、GLM 标准价，未做峰谷时段判断）"
+            + "；口径为派生（token 数 × 单价换算，非直接观测）")
     return MetricOutcome.ok(round(total, 6),
                             evidence=evidence_from([ev for ev, _ in priced], params=params,
                                                    note="参与计价的 llm.response 事件"),
