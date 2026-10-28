@@ -861,12 +861,20 @@ def tokens_total(events: Sequence[dict], params: MetricParams,
     request_total = sum(int(u["total"]) for _, u in hits)
     if request_total > 0:
         partial = len(hits) < len(responses)
+        # P0-4（T05c，唯一被批准的指标层改动之一）：时间窗顺序配对不是键级对齐，
+        # 参与计算的 usage 事件存在 alignment == "time_window" 时 confidence 强制 low。
+        time_window = any(
+            isinstance(_payload(ev).get("usage"), dict)
+            and _payload(ev)["usage"].get("alignment") == "time_window"
+            for ev, _ in hits)
         note = (f"覆盖度 {len(hits)}/{len(responses)} 条 llm.response 读到 usage.total"
-                + ("（非全覆盖，合计为下界，口径为派生）" if partial else ""))
+                + ("（非全覆盖，合计为下界，口径为派生）" if partial else "")
+                + ("；时间窗顺序配对，非键级对齐" if time_window else ""))
         return MetricOutcome.ok(float(request_total),
                                 evidence=evidence_from([ev for ev, _ in hits], params=params,
                                                        note="贡献 token 的 llm.response 事件"),
-                                confidence=_confidence(len(hits), params, derived=partial),
+                                confidence=("low" if time_window
+                                            else _confidence(len(hits), params, derived=partial)),
                                 note=note)
 
     probe = trace_summary_tokens(events)
@@ -905,12 +913,19 @@ def _tokens_slot(events: Sequence[dict], params: MetricParams, slot: str) -> Met
             "不用 total 反推）")
     value = sum(int(u[slot]) for _, u in hits)
     partial = len(hits) < len(responses)
+    # P0-4（T05c，唯一被批准的指标层改动之一）：同 tokens_total——alignment 驱动 confidence。
+    time_window = any(
+        isinstance(_payload(ev).get("usage"), dict)
+        and _payload(ev)["usage"].get("alignment") == "time_window"
+        for ev, _ in hits)
     note = (f"覆盖度 {len(hits)}/{len(responses)} 条 llm.response 读到 usage.{slot}"
-            + ("（非全覆盖，合计为下界，口径为派生）" if partial else ""))
+            + ("（非全覆盖，合计为下界，口径为派生）" if partial else "")
+            + ("；时间窗顺序配对，非键级对齐" if time_window else ""))
     return MetricOutcome.ok(float(value),
                             evidence=evidence_from([ev for ev, _ in hits], params=params,
                                                    note=f"贡献 usage.{slot} 的 llm.response 事件"),
-                            confidence=_confidence(len(hits), params, derived=partial), note=note)
+                            confidence=("low" if time_window
+                                        else _confidence(len(hits), params, derived=partial)), note=note)
 
 
 @register_metric(

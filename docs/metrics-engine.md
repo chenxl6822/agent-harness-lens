@@ -510,3 +510,23 @@ PYTHONPATH=docs/evidence/T06 .venv/Scripts/python.exe -m hs_core.cli metrics run
   - **R2-2** `redundant_loop` 期望值锁定 1 + 反向断言 `≤ 50`（反事实 602 = 签名失效特征值）。
   - **R2-3** 签名口径统一措辞三处逐字一致（本文 §7-1 / R2-result.json `signature_source` /
     `metrics_core._call_signatures()` 注释）；§4.3 补来源等级规则表。
+
+## 13. T05c usage 补采后的 run_id 与 event_id 约定（2026-10-28）
+
+T05c 把通道 B transcript 的 `providerData.usage`/`model` 按时间窗顺序配对注入通道 A
+`llm.response` 的 payload（`alignment: "time_window"`）。payload 进 `event_id` 摘要
+（`_DIGEST_KEYS` 含 payload），由此产生两条硬约定：
+
+1. **T05c 之后的 run 一律使用 `-p2` 类后缀的 `run_id`**（首例 `t06-codebuddy-primary-p2`）。
+   旧 run（如 `t06-codebuddy-primary`）保持不动；**禁止在同一 `run_id` 下混两套
+   `event_id` 口径**（同 run 聚合审计会对不上账）。
+2. **跨卡对比只用指标值（`metricset.json`），不用 `event_id`**。payload 未变化的事件
+   （如未配对注入的 `llm.response`、全部 `tool.call`）在旧/新 run 中确定性 id 相同，
+   这是「id=内容摘要」的设计行为，不构成混用；注入了 usage 的 `llm.response` id 必然改变。
+
+指标侧唯一改动（P0-4，主理人批准）：`_tokens_slot()` / `tokens_total()` 两处——
+参与计算的 usage 事件存在 `payload.usage.alignment == "time_window"` 时 `confidence`
+强制 `low`，note 追加「时间窗顺序配对，非键级对齐」；`alignment == "key"`（未来键级对齐）
+时仍按样本量正常判档。配对三件套（单调顺序配对 / 数量比守卫 [0.8,1.25] / 1s 熔断）
+实现于 `collector._pair_usage_into_responses()`，逐会话报告见 `collect()` 返回的
+`usage_pairing` 与 `probe/t05c/pairing-table.json`。

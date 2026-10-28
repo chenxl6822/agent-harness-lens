@@ -13,6 +13,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import statistics
 import sys
 from collections import Counter
 from pathlib import Path
@@ -266,19 +267,24 @@ _READER_TOOLS = {"Read", "Glob", "Grep"}
 
 
 def load_codebuddy_files(home: Path, run_id: str, stats: Stats, scrub_home: str | None = None,
-                         channel_policy: str = "primary_only") -> list[dict]:
+                         channel_policy: str = "primary_only") -> tuple[list[dict], dict]:
     """通道 A（traces）+ B（transcript）+ C（tasks 快照）→ TraceEvent。
 
     channel_policy（R1-3）：
     - primary_only（默认）：9 类 A/B 双源事件只取主源通道 A，B 的 function_call/function_call_result 抑制
     - merge：A+B 全量并入（仅用于映射覆盖测绘，不得作为 T06 指标口径，见 docs/channel-priority.md）
+
+    返回 (events, usage_pairing)：T05c 把通道 B transcript 的 providerData.usage/model 按
+    时间窗顺序配对注入通道 A 的 llm.response payload（方案 C，见 _pair_usage_into_responses）。
     """
     events: list[dict] = []
     events += _load_channel_a(home / "traces", run_id, stats, scrub_home)
-    events += _load_channel_b(home / "projects", run_id, stats, scrub_home,
-                              channel_policy=channel_policy)
+    b_events, usage_rows = _load_channel_b(home / "projects", run_id, stats, scrub_home,
+                                           channel_policy=channel_policy)
+    events += b_events
     events += _load_channel_c(home / "tasks", run_id, stats, scrub_home)
-    return events
+    usage_pairing = _pair_usage_into_responses(events, usage_rows)
+    return events, usage_pairing
 
 
 def _load_channel_a(root: Path, run_id: str, stats: Stats, scrub_home: str | None = None) -> list[dict]:
@@ -394,11 +400,18 @@ def _map_span(rec: dict, sid: str, run_id: str, ref_base: str, stats: Stats,
 
 
 def _load_channel_b(root: Path, run_id: str, stats: Stats, scrub_home: str | None = None,
-                    channel_policy: str = "primary_only") -> list[dict]:
+                    channel_policy: str = "primary_only") -> tuple[list[dict], list[dict]]:
+    """通道 B → TraceEvent + usage 行提取（T05c）。
+
+    T05c：凡 providerData.usage 非空的记录（实测绝大多数为 function_call 行、少量 assistant
+    message 行）都提取为 usage 行（ts + snake_case usage + model），供时间窗顺序配对注入
+    通道 A 的 llm.response；事件映射本身不变（usage 不改变任何事件 payload）。
+    """
     events: list[dict] = []
+    usage_rows: list[dict] = []
     if not root.is_dir():
         stats.drop("channel_b_missing")
-        return events
+        return events, usage_rows
     for f in sorted(root.glob("*/*.jsonl")):
         ref_base = f"projects/{f.parent.name}/{f.name}"  # 稳定锚点，不含行号（R1-1）
         for line in _iter_lines(f, stats):
@@ -411,6 +424,17 @@ def _load_channel_b(root: Path, run_id: str, stats: Stats, scrub_home: str | Non
             t = rec.get("type")
             sid = rec.get("sessionId") or ""
             ts = _ms_to_iso(rec.get("timestamp"))
+            provider = rec.get("providerData")
+            if isinstance(provider, dict):
+                extracted = _extract_usage(provider)
+                if extracted is not None:
+                    if isinstance(rec.get("timestamp"), int):
+                        model = provider.get("model")
+                        usage_rows.append({"session_id": sid, "ts_ms": rec["timestamp"],
+                                           "usage": extracted,
+                                           "model": model if isinstance(model, str) and model else None})
+                    else:
+                        stats.drop("usage_row_without_timestamp")
             base = dict(platform="codebuddy", channel="file",
                         labels={"sub_channel": "B"},
                         stable_key=_b_stable_key(rec, t),
@@ -451,7 +475,153 @@ def _load_channel_b(root: Path, run_id: str, stats: Stats, scrub_home: str | Non
                 stats.ok(ev_type)
             else:
                 stats.drop("channel_b_unknown_record")
-    return events
+    return events, usage_rows
+
+
+# ---------------------------------------------------------------------------
+# T05c：通道 B usage → 通道 A llm.response 的时间窗顺序配对（方案 C）
+# ---------------------------------------------------------------------------
+
+# 配对三件套（T05c 评估卡 Q1，写死不许改口径）：
+# ① 单调顺序配对（禁止各自取最近邻，避免 2 对 1）；
+# ② 数量比守卫 len(usage)/len(generation span_end) ∈ [0.8, 1.25]，越界整会话不产出；
+# ③ 偏差熔断 1s：出现作废对的会话整体标 unpaired 零产出（P0-2「不得回退到丢几个也能算」），
+#    作废数如实报出。
+_USAGE_PAIR_RATIO = (0.8, 1.25)
+_USAGE_FUSE_MS = 1000
+_USAGE_ALIGNMENT = "time_window"  # 本期唯一取值；"key" 留给未来键级对齐
+
+
+def _extract_usage(provider: dict) -> dict | None:
+    """providerData.usage（camelCase 源）→ snake_case 出口；读不到的键不写，绝不填 0。"""
+    usage = provider.get("usage")
+    if not isinstance(usage, dict) or not usage:
+        return None
+    out: dict = {}
+    for src, dst in (("inputTokens", "input_tokens"), ("outputTokens", "output_tokens"),
+                     ("totalTokens", "total_tokens")):
+        raw = usage.get(src)
+        if isinstance(raw, (int, float)) and not isinstance(raw, bool):
+            out[dst] = int(raw) if float(raw).is_integer() else raw
+    details_in = usage.get("inputTokensDetails")
+    if isinstance(details_in, list) and details_in and isinstance(details_in[0], dict):
+        cached = details_in[0].get("cached_tokens")
+        if isinstance(cached, (int, float)) and not isinstance(cached, bool):
+            out["input_tokens_details"] = {"cached_tokens": int(cached)}
+    details_out = usage.get("outputTokensDetails")
+    if isinstance(details_out, list) and details_out and isinstance(details_out[0], dict):
+        reasoning = details_out[0].get("reasoning_tokens")
+        if isinstance(reasoning, (int, float)) and not isinstance(reasoning, bool):
+            out["output_tokens_details"] = {"reasoning_tokens": int(reasoning)}
+    return out or None
+
+
+def _inject_usage(ev: dict, row: dict) -> None:
+    """把一对配好的 usage/model 注入 llm.response payload 并重算 event_id（payload 进摘要）。"""
+    ev["payload"]["usage"] = {**row["usage"], "alignment": _USAGE_ALIGNMENT}
+    if row.get("model"):
+        ev["payload"]["model"] = row["model"]
+    ev["event_id"] = _compute_event_id(ev)
+
+
+def _pair_usage_into_responses(events: list[dict], usage_rows: list[dict]) -> dict:
+    """时间窗顺序配对（方案 C）：通道 B usage 行 ↔ 通道 A generation 的 llm.response。
+
+    会话↔trace 匹配：两侧 session 命名空间不同（B=sessionId，A=trace_<traceId>，traceId
+    交集实测 0/1），只能按时间区间重叠做一对一贪心匹配（重叠最大者优先，确定性平局取
+    (session_id, trace_id) 字典序）。配对算法三件套见 _USAGE_PAIR_RATIO 注释。
+    未配对/作废数量全部写入报告，不静默丢弃。
+    """
+    resp_by_trace: dict[str, list[dict]] = {}
+    for ev in events:
+        if ev.get("type") == "llm.response" and (ev.get("labels") or {}).get("sub_channel") == "A":
+            resp_by_trace.setdefault(str(ev.get("session_id") or ""), []).append(ev)
+    traces = {sid.removeprefix("trace_"):
+              sorted(evs, key=lambda e: _iso_to_ms(str(e.get("ts") or "")))
+              for sid, evs in resp_by_trace.items()}
+    rows_by_sess: dict[str, list[dict]] = {}
+    for row in usage_rows:
+        rows_by_sess.setdefault(str(row.get("session_id") or ""), []).append(row)
+
+    # 会话 ↔ trace 一对一贪心匹配（按重叠时长降序）
+    cands: list[tuple[int, str, str]] = []
+    for sid, rows in rows_by_sess.items():
+        if not rows:
+            continue
+        lo, hi = rows[0]["ts_ms"], rows[-1]["ts_ms"]
+        for tid, evs in traces.items():
+            if not evs:
+                continue
+            elo, ehi = _iso_to_ms(str(evs[0]["ts"])), _iso_to_ms(str(evs[-1]["ts"]))
+            overlap = min(hi, ehi) - max(lo, elo)
+            if overlap >= 0:  # 不相交为负；0 = 单点时间戳恰好重合，也算候选
+                cands.append((overlap, sid, tid))
+    cands.sort(key=lambda c: (-c[0], c[1], c[2]))
+    matched: dict[str, str] = {}
+    claimed_traces: set[str] = set()
+    for _overlap, sid, tid in cands:
+        if sid in matched or tid in claimed_traces:
+            continue
+        matched[sid] = tid
+        claimed_traces.add(tid)
+
+    sessions_report: list[dict] = []
+    injected_total = 0
+    fused_total = 0
+    for sid in sorted(rows_by_sess):
+        rows = sorted(rows_by_sess[sid], key=lambda r: r["ts_ms"])
+        tid = matched.get(sid)
+        entry: dict = {"session_id": sid, "trace_id": tid, "usage_rows": len(rows)}
+        if tid is None:
+            entry.update(generation_span_ends=0, ratio=None, paired_n=0, fused_n=0,
+                         unpaired_usage_rows=len(rows), p50_delta_ms=None, max_delta_ms=None,
+                         status="unpaired", reason="no_overlapping_trace_available")
+            sessions_report.append(entry)
+            continue
+        evs = traces[tid]
+        n_spans = len(evs)
+        ratio = len(rows) / n_spans if n_spans else None
+        entry["generation_span_ends"] = n_spans
+        entry["ratio"] = round(ratio, 4) if ratio is not None else None
+        if ratio is None or not (_USAGE_PAIR_RATIO[0] <= ratio <= _USAGE_PAIR_RATIO[1]):
+            entry.update(paired_n=0, fused_n=0, unpaired_usage_rows=len(rows),
+                         unpaired_spans=n_spans, p50_delta_ms=None, max_delta_ms=None,
+                         status="unpaired", reason="ratio_out_of_bounds")
+            sessions_report.append(entry)
+            continue
+        n = min(len(rows), n_spans)
+        deltas = [abs(rows[i]["ts_ms"] - _iso_to_ms(str(evs[i]["ts"]))) for i in range(n)]
+        fused = [d for d in deltas if d > _USAGE_FUSE_MS]
+        entry["fused_n"] = len(fused)
+        entry["p50_delta_ms"] = int(statistics.median(deltas)) if deltas else None
+        entry["max_delta_ms"] = max(deltas) if deltas else None
+        if fused:
+            fused_total += len(fused)
+            entry.update(paired_n=0, unpaired_usage_rows=len(rows), unpaired_spans=n_spans,
+                         status="unpaired", reason="fused_pair_over_1s")
+            sessions_report.append(entry)
+            continue
+        for i in range(n):
+            _inject_usage(evs[i], rows[i])
+        injected_total += n
+        entry.update(paired_n=n, unpaired_usage_rows=len(rows) - n, unpaired_spans=n_spans - n,
+                     status="paired", reason=None)
+        sessions_report.append(entry)
+
+    return {
+        "alignment": _USAGE_ALIGNMENT,
+        "ratio_guard": list(_USAGE_PAIR_RATIO),
+        "fuse_ms": _USAGE_FUSE_MS,
+        "summary": {
+            "sessions_with_usage": len(rows_by_sess),
+            "paired": sum(1 for e in sessions_report if e["status"] == "paired"),
+            "unpaired": sum(1 for e in sessions_report if e["status"] != "paired"),
+            "usage_rows_total": sum(e["usage_rows"] for e in sessions_report),
+            "injected_responses": injected_total,
+            "fused_pairs_total": fused_total,
+        },
+        "sessions": sessions_report,
+    }
 
 
 def _b_stable_key(rec: dict, t: str) -> tuple:
@@ -945,6 +1115,7 @@ def collect(
         raise ValueError(f"invalid channel_policy: {channel_policy!r}")
     all_events: list[dict] = []
     channel_stats: list[Stats] = []
+    pairing_report: dict | None = None
     scrub = scrub_home or str(Path.home())
 
     if hook_spool is not None:
@@ -953,9 +1124,11 @@ def collect(
         channel_stats.append(st)
     if codebuddy_home is not None:
         st = Stats("file")
-        all_events += load_codebuddy_files(codebuddy_home, run_id, st, scrub,
-                                           channel_policy=channel_policy)
+        cb_events, usage_pairing = load_codebuddy_files(codebuddy_home, run_id, st, scrub,
+                                                        channel_policy=channel_policy)
+        all_events += cb_events
         channel_stats.append(st)
+        pairing_report = usage_pairing
     if dsh_events is not None:
         st = Stats("dsh")
         all_events += load_dsh_events(dsh_events, run_id, st, scrub)
@@ -1007,6 +1180,8 @@ def collect(
     }
     if channel_policy == "merge":
         result["cross_channel_redundancy"] = _cross_channel_redundancy(all_events)
+    if pairing_report is not None:
+        result["usage_pairing"] = pairing_report
     return result
 
 

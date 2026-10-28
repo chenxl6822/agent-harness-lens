@@ -1,0 +1,69 @@
+T05c usage 补采 · 真实数据端到端验证（2026-10-28）
+============================================================
+
+源快照：probe/t05c/source-snapshot（冻结自 ~/.codebuddy，59MB，traces/projects/tasks 三树）
+run_id：t06-codebuddy-primary-p2（P0-3 硬裁定：payload 变更必须换 run_id 后缀，禁止同 run 混两套 event_id）
+库：runs/t06/t06.db（旧 run t06-codebuddy-primary 保留不动）
+
+## B1 db verify
+- rows=16183, schema_invalid=0, model_invalid=0, seq_dense=true, dup_pk=0, ok=true
+
+## B2 幂等重放
+- 同一快照重复 ingest：inserted=224（快照比首摄多出的新记录），skipped=15959，updated=0
+- 旧 15959 条 event_id 全部命中（确定性 id 幂等），零更新
+
+## B3/B4 event_id 变更留痕 + run 隔离
+- 库内 SELECT run_id, COUNT(*) GROUP BY run_id：
+    t06-codebuddy-primary    = 9809（旧，未动）
+    t06-codebuddy-primary-p2 = 16183（新）
+- 两 run 的 event_id 分属各自 run（复合主键 (run_id, event_id)）
+- llm.response：旧 765 / 新 1250，其中 912 条注入 usage 后 event_id 全部改变；
+  338 条未配对（无 usage 注入）payload 与旧完全一致 → 确定性 id 保持相同（payload 未变，
+  id=内容摘要的设计行为，非混用两套口径；注入与未注入在同一 run 内口径一致：都按本卡代码计算）
+
+## P0-2 配对表（摘要，逐会话见 pairing-table.json）
+- sessions_with_usage=30  paired=19  unpaired=11
+- usage_rows_total=1271  injected_responses=912  fused_pairs_total=25
+- unpaired 明细：ratio_out_of_bounds 2（01a170dc 2.146、01a17354 2.211）；
+  fused_pair_over_1s 3（01a16e43 max 5080ms/3 对、01a1716d max 100663ms/21 对、01a17617 max 1860ms/1 对）——整会话零产出；
+  no_overlapping_trace_available 6（各 1 条 usage 行，无 trace 重叠）
+
+## A1/A2/A3 cost.tokens 出值与覆盖度
+- cost.tokens_in = 111486382.0  confidence=low
+- cost.tokens_out = 597472.0  confidence=low
+- cost.tokens_total = 112083854.0  confidence=low
+- note: 覆盖度 912/1250 条 llm.response 读到 usage.total（非全覆盖，合计为下界，口径为派生）；时间窗顺序配对，非键级对齐
+- note: 覆盖度 912/1250 条 llm.response 读到 usage.in（非全覆盖，合计为下界，口径为派生）；时间窗顺序配对，非键级对齐
+- 覆盖度 912/1250 与配对表 injected_responses=912 一致（A4 对齐：注入多少读出多少）
+
+## A7 model 入库
+- llm.response payload.model 非空 912 条 == 注入 usage 912 条（usage 与 model 100% 同行在本源成立）
+- model 取值：glm-5.3-flash ×487、deepseek-v4.1-flash ×425
+
+## A8 cost.cny 降级 reason 原文（未改动 cost_cny 代码，越界禁改）
+- reason=no_source
+- detail=单价表未配置：`pricing.yaml` 缺这些模型的单价 ['deepseek-v4.1-flash', 'glm-5.3-flash']（本轮单价留空占位，禁止编造单价——编造价会让成本指标变成假数据）
+
+## wall_clock 未受影响
+- cost.wall_clock_p50: no_source（与 T06 基线一致，缺 run 级起止事件）
+- cost.wall_clock_p95: no_source（与 T06 基线一致，缺 run 级起止事件）
+
+## C1 --at 冻结复现
+- 同一源 + --at 2026-10-28T00:00:00Z 跑两次：metricset.json 逐字节一致 = True
+
+## 指标层改动边界自检
+- metrics_core.py 仅改 _tokens_slot() 与 tokens_total() 两处：alignment==time_window → confidence=low +
+  note 追加「时间窗顺序配对，非键级对齐」；数值计算/_usage_of/_model_of/_confidence/其他指标零改动
+- A6 成对断言（test_collector_usage.py）：alignment=key 满覆盖 25 条 → high；time_window → 恒 low
+
+## 已知妥协（如实报）
+1. 熔断口径：P0-1 规则4 写「单对作废」，P0-2 写「max>1s 整会话 unpaired、不得丢几个也能算」。
+   取严格口径：出现熔断对的会话整体零产出（fused_n 如实报出）。代价：01a16e43/01a1716d/01a17617
+   三个会话共 206 条 usage 行未产出（其中大量配对质量良好）。
+2. cost.cny 的降级 detail 为 T06 既有文案「单价表未配置：...缺这些模型的单价 [...]」，
+   含单价未配置语义与 model 清单，但无「usage 已采 X/Y 条」字样——cost_cny 不在批准改动范围内，未动。
+3. coverage 分母 1250 > 注入 912：分母是全 run llm.response（含未配对会话/无 trace 会话的 generation span），
+   覆盖率天然 < 100%，note 如实呈现。
+4. 源数据持续增长（本机在跑 Agent），验证用冻结快照保证三步（ingest/配对表/metrics）数字一致。
+5. 首轮全量 pytest 出现 1 例 test_e3_4_concurrent_ingest 偶发失败（sqlite 并发时序，与本卡改动无关，
+   单独重跑及第二轮全量均绿）。
